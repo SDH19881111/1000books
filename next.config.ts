@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
         hostname: '*.pstatic.net',
       },
     ],
+    // Cloudflare Pages에서는 Next.js Image 최적화 대신 unoptimized 사용
+    unoptimized: true,
   },
 };
 
