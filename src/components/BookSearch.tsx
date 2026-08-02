@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBookStore } from '@/store/useBookStore';
 
-interface NaverBook {
+interface BookSearchResult {
   title: string;
   author: string;
   image: string;
@@ -19,14 +19,14 @@ interface BookSearchProps {
   onClose: () => void;
 }
 
-// 네이버 API 제목에서 HTML 태그 제거
+// 검색 API 제목에서 HTML 태그 제거
 function cleanText(text: string): string {
   return text.replace(/<[^>]*>/g, '').trim();
 }
 
 export default function BookSearch({ onClose }: BookSearchProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<NaverBook[]>([]);
+  const [results, setResults] = useState<BookSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [added, setAdded] = useState<Set<string>>(new Set());
@@ -58,7 +58,7 @@ export default function BookSearch({ onClose }: BookSearchProps) {
     }
   }, [query]);
 
-  const handleAdd = useCallback((book: NaverBook) => {
+  const handleAdd = useCallback((book: BookSearchResult) => {
     addBook({
       title: cleanText(book.title),
       author: cleanText(book.author),
