@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  AladinSearchResponse,
+  createAladinSearchUrl,
+  normalizeAladinSearch,
+} from '@/lib/aladinBooks';
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q');
@@ -7,33 +12,34 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: '검색어를 입력해주세요.' }, { status: 400 });
   }
 
-  const clientId = process.env.NAVER_CLIENT_ID;
-  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+  const ttbKey = process.env.ALADIN_TTB_KEY;
 
-  if (!clientId || !clientSecret) {
+  if (!ttbKey) {
     return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
   }
 
   try {
-    const res = await fetch(
-      `https://openapi.naver.com/v1/search/book.json?query=${encodeURIComponent(query)}&display=10&start=1`,
-      {
-        headers: {
-          'X-Naver-Client-Id': clientId,
-          'X-Naver-Client-Secret': clientSecret,
-        },
-        cache: 'no-store',
-      }
-    );
+    const apiUrl = createAladinSearchUrl(query, ttbKey);
+
+    const res = await fetch(apiUrl, { cache: 'no-store' });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error('Naver API error:', errText);
-      return NextResponse.json({ error: '네이버 API 오류가 발생했습니다.' }, { status: res.status });
+      console.error('Aladin API error:', errText);
+      return NextResponse.json({ error: '알라딘 API 오류가 발생했습니다.' }, { status: res.status });
     }
 
-    const data = await res.json();
-    return NextResponse.json(data);
+    const data = (await res.json()) as AladinSearchResponse;
+
+    if (data.errorCode) {
+      console.error('Aladin API error:', data.errorCode, data.errorMessage);
+      return NextResponse.json(
+        { error: data.errorMessage || '알라딘 API 오류가 발생했습니다.' },
+        { status: 502 }
+      );
+    }
+
+    return NextResponse.json(normalizeAladinSearch(data));
   } catch (err) {
     console.error('fetch error:', err);
     return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
