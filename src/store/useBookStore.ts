@@ -20,6 +20,7 @@ export interface Reward {
 }
 
 export const MILESTONES = [10, 30, 50, 100, 200, 300, 500, 1000];
+export const BOOK_STORAGE_KEY = '1000books-storage';
 
 export const MILESTONE_REWARDS: Record<number, { title: string; emoji: string; description: string }> = {
   10:   { title: '마법 요정',     emoji: '🧚',  description: '10권을 읽은 당신은 마법 요정이에요!' },
@@ -153,6 +154,6 @@ export const useBookStore = create<BookStore>()(
         return MILESTONES.filter((m) => m <= readCount);
       },
     }),
-    { name: '1000books-storage' }
+    { name: BOOK_STORAGE_KEY }
   )
 );

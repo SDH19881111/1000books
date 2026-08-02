@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBookStore, Book } from '@/store/useBookStore';
 import Navbar from '@/components/Navbar';
 import BookSearch from '@/components/BookSearch';
+import DataBackup from '@/components/DataBackup';
 
 const ADMIN_PIN = '1234';
 
@@ -298,6 +299,8 @@ export default function AdminPage() {
             <BookSearch onClose={() => setActiveSection('books')} />
           </div>
         )}
+
+        <DataBackup />
       </div>
 
       <Navbar />
