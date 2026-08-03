@@ -206,6 +206,8 @@ export default function AdminPage() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
+        <DataBackup />
+
         {/* 섹션 탭 */}
         <div className="flex bg-pink-100/60 rounded-2xl p-1">
           {(['books', 'add'] as const).map((s) => (
@@ -300,7 +302,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        <DataBackup />
       </div>
 
       <Navbar />
