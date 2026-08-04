@@ -150,17 +150,18 @@ body {
 
 .game-sprite-bear {
   background-image: url('/game/bear-sprites.webp');
-  background-size: 300% 100%;
+  /* 칸 경계의 반 픽셀 보간이 옆 스프라이트를 비추지 않도록 살짝 확대합니다. */
+  background-size: 301.5% 100%;
 }
 
 .game-sprite-item {
   background-image: url('/game/item-sprites.webp');
-  background-size: 400% 400%;
+  background-size: 402% 402%;
 }
 
 .game-sprite-rabbit {
   background-image: url('/game/rabbit-sprites.webp');
-  background-size: 300% 300%;
+  background-size: 301.5% 301.5%;
 }
 
 .game-world-scene {

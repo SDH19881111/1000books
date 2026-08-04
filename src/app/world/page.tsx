@@ -73,7 +73,7 @@ const WORLD_SPRITES = Object.fromEntries(
           sheet: 'world',
           position: `${(column / 3) * 100}% ${(row / 3) * 100}%`,
           backgroundImage: `url('/game/world-${world.id}-sprites.png')`,
-          backgroundSize: '400% 400%',
+          backgroundSize: '402% 402%',
         } satisfies SpriteDefinition,
       ];
     })
