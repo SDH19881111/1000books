@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
+import { getMilestoneBookStars } from '@/lib/bookEconomy';
 import { MILESTONE_REWARDS } from '@/store/useBookStore';
 import ConfettiEffect from './ConfettiEffect';
 
@@ -12,6 +13,7 @@ interface MilestoneModalProps {
 export default function MilestoneModal({ milestone, onClose }: MilestoneModalProps) {
   const isOpen = milestone !== null;
   const reward = milestone ? MILESTONE_REWARDS[milestone] : null;
+  const bookStarReward = milestone ? getMilestoneBookStars(milestone) : 0;
 
   return (
     <AnimatePresence>
@@ -87,6 +89,10 @@ export default function MilestoneModal({ milestone, onClose }: MilestoneModalPro
               >
                 {reward.description}
               </motion.p>
+
+              <div className="mb-5 rounded-2xl bg-yellow-50 px-4 py-3 text-sm font-black text-amber-600">
+                ★ 마일스톤 보너스 +{bookStarReward}책별
+              </div>
 
               {/* 별 장식 */}
               <div className="flex justify-center gap-2 mb-6">

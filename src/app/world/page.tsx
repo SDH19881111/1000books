@@ -3,9 +3,23 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Navbar from '@/components/Navbar';
-import { GAME_ITEMS, GameItem } from '@/lib/gameCatalog';
+import {
+  BOOK_STARS_PER_BOOK,
+  READING_WORLDS,
+  SHOP_BOOK_STAR_BUDGET,
+  getCurrentReadingWorld,
+  getNextReadingWorld,
+  getReadingWorld,
+} from '@/lib/bookEconomy';
+import {
+  GAME_ITEMS,
+  GameItem,
+  SHOP_ITEM_COUNT,
+  getItemRequiredBooks,
+  getItemWorld,
+} from '@/lib/gameCatalog';
 import { useBookStore } from '@/store/useBookStore';
-import { useGameStore } from '@/store/useGameStore';
+import { PurchaseResult, useGameStore } from '@/store/useGameStore';
 
 type WorldView = 'room' | 'yard' | 'rabbit';
 type ItemFilter = 'owned' | 'shop';
@@ -34,14 +48,17 @@ const SPRITES: Record<string, { sheet: 'bear' | 'item' | 'rabbit'; position: str
 };
 
 interface SpriteProps {
-  art: string;
+  art?: string;
   className?: string;
   label?: string;
+  fallback?: string;
 }
 
-function Sprite({ art, className = '', label }: SpriteProps) {
-  const sprite = SPRITES[art];
-  if (!sprite) return <span className={className}>✨</span>;
+function Sprite({ art, className = '', label, fallback = '✨' }: SpriteProps) {
+  const sprite = art ? SPRITES[art] : undefined;
+  if (!sprite) {
+    return <span className={`game-emoji-preview ${className}`}>{fallback}</span>;
+  }
 
   return (
     <span
@@ -54,20 +71,38 @@ function Sprite({ art, className = '', label }: SpriteProps) {
   );
 }
 
-function currencyLabel(item: GameItem) {
+function itemStatusLabel(item: GameItem) {
+  if (item.source === 'discovery') return '🎁 행운 발견';
+  if (item.source === 'legendary') return `🏆 ${item.unlockAt}권 세계 완성`;
+  if (item.source === 'milestone') return `📚 ${item.unlockAt}권 독서 보상`;
   if (item.currency === 'hearts') return `♥ ${item.price}`;
   if (item.currency === 'bookStars') return `★ ${item.price}`;
-  if (item.unlockAt) return `${item.unlockAt}권 보상`;
   return '기본 아이템';
 }
 
+function purchaseFailureMessage(result: PurchaseResult, item: GameItem) {
+  if (result === 'locked') {
+    return `🔒 ${getItemRequiredBooks(item)}권을 읽으면 살 수 있어요.`;
+  }
+  if (result === 'needs-rabbit') return '🐰 먼저 토끼 친구를 만나주세요.';
+  if (result === 'insufficient-hearts') return '♥ 하트가 부족해요.';
+  if (result === 'insufficient-book-stars') return '★ 책별이 부족해요. 책 한 권마다 10책별을 얻어요.';
+  return '지금은 얻을 수 없는 아이템이에요.';
+}
+
 export default function WorldPage() {
+  const books = useBookStore((state) => state.books);
+  const readCount = books.filter((book) => book.status === 'read').length;
+  const currentWorld = getCurrentReadingWorld(readCount);
+  const nextWorld = getNextReadingWorld(readCount);
+
   const [view, setView] = useState<WorldView>('room');
   const [filter, setFilter] = useState<ItemFilter>('owned');
-  const [message, setMessage] = useState('책을 읽고 별과 하트를 모아 꾸며봐요!');
+  const [selectedWorldId, setSelectedWorldId] = useState(currentWorld.id);
+  const [message, setMessage] = useState(`책 한 권을 읽으면 ${BOOK_STARS_PER_BOOK}책별을 얻어요!`);
 
-  const books = useBookStore((state) => state.books);
   const bookStars = useGameStore((state) => state.bookStars);
+  const bookStarDebt = useGameStore((state) => state.bookStarDebt);
   const hearts = useGameStore((state) => state.hearts);
   const ledger = useGameStore((state) => state.bookRewardLedger);
   const rabbitAdopted = useGameStore((state) => state.rabbitAdopted);
@@ -77,16 +112,17 @@ export default function WorldPage() {
   const purchaseItem = useGameStore((state) => state.purchaseItem);
   const toggleEquippedItem = useGameStore((state) => state.toggleEquippedItem);
 
-  const readCount = books.filter((book) => book.status === 'read').length;
+  const selectedWorld = getReadingWorld(selectedWorldId) ?? currentWorld;
   const proseCount = Object.values(ledger).filter((record) => record.proseCreditedAt).length;
   const englishCount = Object.values(ledger).filter((record) => record.englishCreditedAt).length;
 
   const outfit = GAME_ITEMS.find(
-    (item) => item.slot === 'outfit' && equippedBearItems.includes(item.id)
+    (item) => item.art && item.slot === 'outfit' && equippedBearItems.includes(item.id)
   ) ?? GAME_ITEMS[0];
 
   const visibleItems = useMemo(() => {
     const areaItems = GAME_ITEMS.filter((item) => {
+      if (item.worldId !== selectedWorld.id) return false;
       if (view === 'rabbit') return item.area === 'rabbit';
       return item.area === 'character' || item.area === view;
     });
@@ -94,27 +130,58 @@ export default function WorldPage() {
     if (filter === 'owned') {
       return areaItems.filter((item) => ownedItemIds.includes(item.id));
     }
-    return areaItems.filter((item) => !ownedItemIds.includes(item.id));
-  }, [filter, ownedItemIds, view]);
+    return areaItems.filter(
+      (item) => item.source !== 'starter' && !ownedItemIds.includes(item.id)
+    );
+  }, [filter, ownedItemIds, selectedWorld.id, view]);
+
+  const selectedWorldContent = GAME_ITEMS.filter(
+    (item) =>
+      item.worldId === selectedWorld.id &&
+      ['shop', 'milestone', 'discovery', 'legendary'].includes(item.source)
+  );
+  const selectedWorldOwnedCount = selectedWorldContent.filter((item) =>
+    ownedItemIds.includes(item.id)
+  ).length;
+
+  const genericEquippedItems = GAME_ITEMS.filter(
+    (item) =>
+      !item.art &&
+      equippedBearItems.includes(item.id) &&
+      (item.area === 'character' || item.area === view)
+  );
+
+  const handleWorld = (worldId: string) => {
+    const world = getReadingWorld(worldId);
+    if (!world) return;
+    if (readCount < world.unlockAt) {
+      setMessage(`🔒 ${world.name}은 ${world.unlockAt}권을 읽으면 열려요.`);
+      return;
+    }
+    setSelectedWorldId(world.id);
+    setMessage(`${world.emoji} ${world.name} 아이템을 보고 있어요.`);
+  };
 
   const handleItem = (item: GameItem) => {
     const owned = ownedItemIds.includes(item.id);
 
     if (!owned) {
-      if (item.source === 'milestone') {
+      if (item.source === 'milestone' || item.source === 'legendary') {
         setMessage(`📚 ${item.unlockAt}권을 완독하면 자동으로 열려요.`);
         return;
       }
-
-      if (item.area === 'rabbit' && item.id !== 'rabbit-pet' && !rabbitAdopted) {
-        setMessage('🐰 먼저 하트 5개로 토끼 친구를 만나주세요.');
+      if (item.source === 'discovery') {
+        setMessage('🎁 책을 읽는 동안 보물상자에서 행운으로 발견할 수 있어요.');
         return;
       }
 
-      if (purchaseItem(item.id)) {
-        setMessage(item.id === 'rabbit-pet' ? '🐰 토끼 친구가 가족이 되었어요!' : `🎁 ${item.name}을(를) 얻었어요!`);
+      const result = purchaseItem(item.id, readCount);
+      if (result === 'purchased' || result === 'owned') {
+        setMessage(item.id === 'rabbit-pet'
+          ? '🐰 토끼 친구가 가족이 되었어요!'
+          : `🎁 ${item.name}을(를) 얻었어요!`);
       } else {
-        setMessage(item.currency === 'hearts' ? '♥ 하트가 부족해요.' : '★ 책별이 부족해요.');
+        setMessage(purchaseFailureMessage(result, item));
       }
       return;
     }
@@ -128,7 +195,7 @@ export default function WorldPage() {
     const isEquipped = item.area === 'rabbit'
       ? equippedRabbitItems.includes(item.id)
       : equippedBearItems.includes(item.id);
-    setMessage(isEquipped ? `${item.name}을(를) 벗었어요.` : `${item.name}을(를) 착용했어요!`);
+    setMessage(isEquipped ? `${item.name}을(를) 벗었어요.` : `${item.name}을(를) 사용했어요!`);
   };
 
   const hasSceneItem = (itemId: string) =>
@@ -139,7 +206,7 @@ export default function WorldPage() {
       <header className="bg-gradient-to-br from-indigo-400 via-purple-300 to-pink-300 px-4 pb-5 pt-10 text-white">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-bold text-purple-100">나만의 독서 세계</p>
+            <p className="text-xs font-bold text-purple-100">나만의 1,000권 독서 세계</p>
             <h1 className="font-pen text-4xl drop-shadow">책별 마을</h1>
           </div>
           <div className="flex gap-2 text-xs font-black">
@@ -152,9 +219,75 @@ export default function WorldPage() {
           <span className="rounded-full bg-amber-50/90 px-2.5 py-1">📖 줄글 {proseCount}권</span>
           <span className="rounded-full bg-sky-50/90 px-2.5 py-1">🔤 영어 {englishCount}권</span>
         </div>
+        {bookStarDebt > 0 && (
+          <p className="mt-2 rounded-xl bg-white/20 px-3 py-2 text-[10px] font-bold">
+            도장 취소로 회수할 {bookStarDebt}책별은 다음 보상에서 자동 정산돼요.
+          </p>
+        )}
       </header>
 
       <main className="space-y-4 px-3 py-4">
+        <section className="rounded-3xl border border-amber-100 bg-white/80 p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold text-amber-500">{currentWorld.emoji} 현재 세계</p>
+              <h2 className="text-sm font-black text-gray-700">{currentWorld.name}</h2>
+            </div>
+            <p className="text-right text-[10px] font-bold text-gray-400">
+              1권 = {BOOK_STARS_PER_BOOK}책별<br />
+              상점 {SHOP_ITEM_COUNT}개 = {SHOP_BOOK_STAR_BUDGET.toLocaleString()}책별
+            </p>
+          </div>
+          {nextWorld ? (
+            <p className="mt-2 text-[10px] text-purple-500">
+              다음 {nextWorld.emoji} {nextWorld.name}까지 {nextWorld.unlockAt - readCount}권
+            </p>
+          ) : (
+            <p className="mt-2 text-[10px] font-bold text-amber-500">🏆 1,000권 모든 세계가 열렸어요!</p>
+          )}
+        </section>
+
+        <section aria-label="독서 세계 선택" className="-mx-3 overflow-x-auto px-3 pb-1">
+          <div className="flex w-max gap-2">
+            {READING_WORLDS.map((world) => {
+              const unlocked = readCount >= world.unlockAt;
+              const selected = world.id === selectedWorld.id;
+              return (
+                <button
+                  key={world.id}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-disabled={!unlocked}
+                  onClick={() => handleWorld(world.id)}
+                  className={`w-24 rounded-2xl border px-2 py-2 text-left transition-colors ${
+                    selected
+                      ? 'border-purple-300 bg-purple-100 text-purple-700'
+                      : unlocked
+                        ? 'border-white bg-white/80 text-gray-600'
+                        : 'border-gray-100 bg-gray-100/80 text-gray-400'
+                  }`}
+                >
+                  <span className={`block text-xl ${unlocked ? '' : 'grayscale'}`}>{unlocked ? world.emoji : '🔒'}</span>
+                  <strong className="mt-1 block text-[10px] leading-tight">{world.name}</strong>
+                  <span className="mt-1 block text-[9px]">{world.startBook}~{world.endBook}권</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-purple-100 bg-purple-50/80 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <strong className="text-xs text-purple-700">{selectedWorld.emoji} {selectedWorld.name}</strong>
+              <p className="mt-0.5 text-[10px] text-purple-400">{selectedWorld.description}</p>
+            </div>
+            <span className="whitespace-nowrap rounded-full bg-white px-2 py-1 text-[10px] font-black text-purple-500">
+              {selectedWorldOwnedCount}/12
+            </span>
+          </div>
+        </section>
+
         <div className="grid grid-cols-3 gap-1 rounded-2xl bg-purple-100/70 p-1">
           {([
             ['room', '🏠 방'],
@@ -175,50 +308,41 @@ export default function WorldPage() {
         </div>
 
         <section
-          aria-label={
-            view === 'yard'
-              ? '곰돌이의 마당'
-              : view === 'rabbit'
-                ? '곰돌이와 작은 토끼 친구 꾸미기'
-                : '곰돌이의 방'
-          }
+          aria-label={view === 'yard' ? '곰돌이의 마당' : view === 'rabbit' ? '곰돌이와 토끼 친구' : '곰돌이의 방'}
           className={`game-world-scene ${view === 'yard' ? 'game-world-yard' : 'game-world-room'}`}
         >
           <div className="game-world-sparkles" aria-hidden>✦　·　✧</div>
           {view !== 'yard' && <div className="game-world-window" aria-hidden />}
           {view === 'yard' && <div className="game-world-cloud" aria-hidden />}
 
-          {view === 'room' && hasSceneItem('room-rug') && (
-            <Sprite art="rug" className="game-scene-rug" />
-          )}
-          {view === 'room' && hasSceneItem('room-shelf') && (
-            <Sprite art="shelf" className="game-scene-shelf" />
-          )}
-          {view === 'yard' && hasSceneItem('yard-tree') && (
-            <Sprite art="tree" className="game-scene-tree" />
-          )}
-          {view === 'yard' && hasSceneItem('yard-flowers') && (
-            <Sprite art="flowers" className="game-scene-flowers" />
-          )}
-          {view === 'yard' && hasSceneItem('yard-swing') && (
+          {view === 'room' && hasSceneItem('room-rug') && <Sprite art="rug" className="game-scene-rug" />}
+          {view === 'room' && hasSceneItem('room-shelf') && <Sprite art="shelf" className="game-scene-shelf" />}
+          {view === 'yard' && hasSceneItem('yard-tree') && <Sprite art="tree" className="game-scene-tree" />}
+          {view === 'yard' && hasSceneItem('yard-flowers') && <Sprite art="flowers" className="game-scene-flowers" />}
+          {view === 'yard' && (hasSceneItem('yard-swing') || hasSceneItem('yard-swing-reward')) && (
             <Sprite art="swing" className="game-scene-swing" />
           )}
+
+          {genericEquippedItems.map((item) => (
+            <span
+              key={item.id}
+              role="img"
+              aria-label={item.name}
+              className={`game-generic-item game-generic-${item.area} game-generic-${item.slot}`}
+            >
+              {item.emoji}
+            </span>
+          ))}
 
           <motion.div
             animate={{ y: [0, -4, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             className={`game-bear-wrap ${view === 'rabbit' ? 'game-bear-with-rabbit' : ''}`}
           >
-            {equippedBearItems.includes('backpack-mint') && (
-              <Sprite art="backpack" className="game-bear-backpack" />
-            )}
-            <Sprite art={outfit.art} className="game-bear" label={outfit.name} />
-            {equippedBearItems.includes('hat-crown') && (
-              <Sprite art="crown" className="game-bear-crown" />
-            )}
-            {equippedBearItems.includes('face-glasses') && (
-              <Sprite art="glasses" className="game-bear-glasses" />
-            )}
+            {equippedBearItems.includes('backpack-mint') && <Sprite art="backpack" className="game-bear-backpack" />}
+            <Sprite art={outfit.art} className="game-bear" label={outfit.name} fallback={outfit.emoji} />
+            {equippedBearItems.includes('hat-crown') && <Sprite art="crown" className="game-bear-crown" />}
+            {equippedBearItems.includes('face-glasses') && <Sprite art="glasses" className="game-bear-glasses" />}
           </motion.div>
 
           <motion.div
@@ -233,13 +357,13 @@ export default function WorldPage() {
                 {equippedRabbitItems.map((itemId) => {
                   if (itemId === 'rabbit-backpack') return null;
                   const item = GAME_ITEMS.find((candidate) => candidate.id === itemId);
-                  return item ? <Sprite key={item.id} art={item.art} className="game-rabbit-layer" /> : null;
+                  return item?.art ? <Sprite key={item.id} art={item.art} className="game-rabbit-layer" /> : null;
                 })}
               </>
             ) : (
               <>
-                <Sprite art="rabbit-base" className="game-rabbit-base game-rabbit-disabled" label="아직 만나지 않은 작은 토끼 친구" />
-                <div className="game-rabbit-locked"><strong>♥ 5</strong></div>
+                <Sprite art="rabbit-base" className="game-rabbit-base game-rabbit-disabled" label="아직 만나지 않은 토끼 친구" />
+                <div className="game-rabbit-locked"><strong>{readCount < 100 ? '🔒 100권' : '♥ 5'}</strong></div>
               </>
             )}
           </motion.div>
@@ -258,7 +382,7 @@ export default function WorldPage() {
             <div className="flex rounded-xl bg-gray-100 p-1 text-[10px] font-bold">
               {([
                 ['owned', '보유'],
-                ['shop', '상점'],
+                ['shop', '상점·보상'],
               ] as const).map(([value, label]) => (
                 <button
                   key={value}
@@ -274,7 +398,7 @@ export default function WorldPage() {
 
           {visibleItems.length === 0 ? (
             <div className="rounded-2xl bg-purple-50 py-8 text-center text-xs text-purple-400">
-              {filter === 'owned' ? '아직 보유한 아이템이 없어요.' : '현재 화면에서 살 수 있는 아이템을 모두 모았어요!'}
+              {filter === 'owned' ? '이 화면에 배치할 보유 아이템이 없어요.' : '이 화면의 아이템을 모두 모았어요!'}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
@@ -283,23 +407,29 @@ export default function WorldPage() {
                 const equipped = item.area === 'rabbit'
                   ? equippedRabbitItems.includes(item.id)
                   : equippedBearItems.includes(item.id);
+                const itemWorld = getItemWorld(item);
+                const rewardLocked = !owned &&
+                  (item.source === 'milestone' || item.source === 'legendary') &&
+                  readCount < (item.unlockAt ?? 0);
                 return (
                   <motion.button
                     key={item.id}
                     type="button"
                     whileTap={{ scale: 0.97 }}
                     onClick={() => handleItem(item)}
-                    className={`flex min-h-24 items-center gap-2 rounded-2xl border p-2 text-left transition-colors ${
+                    className={`relative flex min-h-24 items-center gap-2 overflow-hidden rounded-2xl border p-2 text-left transition-colors ${
                       equipped
                         ? 'border-purple-300 bg-purple-50'
                         : 'border-gray-100 bg-white/80 hover:bg-pink-50'
                     }`}
                   >
-                    <Sprite art={item.art} className="game-item-icon" />
+                    {rewardLocked && <span className="absolute right-2 top-2 text-xs">🔒</span>}
+                    <Sprite art={item.art} fallback={item.source === 'discovery' && !owned ? '❓' : item.emoji} className="game-item-icon" />
                     <span className="min-w-0 flex-1">
                       <strong className="block text-xs text-gray-700">{item.name}</strong>
+                      <span className="mt-0.5 block text-[9px] text-gray-400">{itemWorld.emoji} {itemWorld.name}</span>
                       <span className="mt-1 block text-[10px] font-bold text-purple-500">
-                        {equipped ? '✓ 사용 중' : owned ? '사용하기' : currencyLabel(item)}
+                        {equipped ? '✓ 사용 중' : owned ? '사용하기' : itemStatusLabel(item)}
                       </span>
                     </span>
                   </motion.button>

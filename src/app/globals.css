@@ -292,6 +292,45 @@ body {
   flex: 0 0 auto;
 }
 
+.game-emoji-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255,255,255,.95), rgba(245,238,255,.9));
+  font-size: 34px;
+  line-height: 1;
+}
+
+.game-generic-item {
+  position: absolute;
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border: 2px solid rgba(255,255,255,.85);
+  border-radius: 20px;
+  background: rgba(255,255,255,.62);
+  font-size: 36px;
+  filter: drop-shadow(0 5px 6px rgba(84, 61, 105, .22));
+  backdrop-filter: blur(3px);
+}
+
+.game-generic-character.game-generic-hat { left: 49%; top: 20px; transform: translateX(-50%); }
+.game-generic-character.game-generic-face { left: 49%; top: 96px; transform: translateX(-50%); }
+.game-generic-character.game-generic-back { right: 8px; top: 152px; }
+.game-generic-character.game-generic-outfit { right: 10px; bottom: 76px; }
+
+.game-generic-room.game-generic-rug { left: 18px; bottom: 18px; }
+.game-generic-room.game-generic-shelf { left: 18px; top: 145px; }
+.game-generic-room.game-generic-lamp { right: 18px; top: 74px; }
+
+.game-generic-yard.game-generic-flowers { left: 20px; bottom: 12px; }
+.game-generic-yard.game-generic-tree { left: 18px; bottom: 85px; }
+.game-generic-yard.game-generic-swing { right: 12px; top: 72px; }
+
 @media (max-width: 380px) {
   .game-world-scene { min-height: 340px; }
   .game-bear-wrap { width: 174px; height: 261px; }

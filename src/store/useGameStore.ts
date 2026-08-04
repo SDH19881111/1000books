@@ -1,20 +1,36 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { GAME_ITEMS, STARTER_ITEM_IDS, getGameItem } from '@/lib/gameCatalog';
+import {
+  BOOK_STAR_MILESTONES,
+  BOOK_STARS_PER_BOOK,
+  getCurrentReadingWorld,
+  getMilestoneBookStars,
+} from '@/lib/bookEconomy';
+import {
+  GAME_ITEMS,
+  STARTER_ITEM_IDS,
+  getGameItem,
+  getItemRequiredBooks,
+} from '@/lib/gameCatalog';
 
 export const GAME_STORAGE_KEY = '1000books-game-storage';
-export const GAME_STORAGE_VERSION = 1;
+export const GAME_STORAGE_VERSION = 2;
 
 export interface RewardableBook {
   id: string;
   isProse: boolean;
   isEnglish: boolean;
+  stampedAt?: string;
 }
 
 export interface BookRewardRecord {
   bookRewardedAt: string;
+  bookStarActive: boolean;
+  bookStarRevokedAt?: string;
   proseCreditedAt?: string;
   englishCreditedAt?: string;
+  discoveryRolledAt?: string;
+  discoveredItemId?: string;
 }
 
 export interface ItemTransform {
@@ -25,6 +41,7 @@ export interface ItemTransform {
 
 export interface BookRewardResult {
   bookStarsGranted: number;
+  bookStarsRevoked: number;
   heartsGranted: number;
   proseCredited: boolean;
   englishCredited: boolean;
@@ -32,9 +49,11 @@ export interface BookRewardResult {
 
 export interface RewardLedgerState {
   bookStars: number;
+  bookStarDebt: number;
   hearts: number;
   bookRewardLedger: Record<string, BookRewardRecord>;
   claimedHeartMilestones: string[];
+  claimedBookStarMilestones: number[];
 }
 
 export interface RewardLedgerUpdate {
@@ -42,26 +61,31 @@ export interface RewardLedgerUpdate {
   result: BookRewardResult;
 }
 
-interface GameStore {
-  bookStars: number;
-  hearts: number;
-  bookRewardLedger: Record<string, BookRewardRecord>;
-  claimedHeartMilestones: string[];
+export type PurchaseResult =
+  | 'purchased'
+  | 'owned'
+  | 'locked'
+  | 'not-for-sale'
+  | 'needs-rabbit'
+  | 'insufficient-book-stars'
+  | 'insufficient-hearts';
+
+interface GameStore extends RewardLedgerState {
   rabbitAdopted: boolean;
   ownedItemIds: string[];
   equippedBearItems: string[];
   equippedRabbitItems: string[];
   itemTransforms: Record<string, ItemTransform>;
 
-  recordBookRewards: (book: RewardableBook) => BookRewardResult;
-  syncMilestoneItems: (readCount: number) => void;
-  purchaseItem: (itemId: string) => boolean;
+  syncReadingProgress: (books: RewardableBook[]) => void;
+  purchaseItem: (itemId: string, readCount: number) => PurchaseResult;
   toggleEquippedItem: (itemId: string) => void;
   setItemTransform: (itemId: string, transform: ItemTransform) => void;
 }
 
 const EMPTY_REWARD_RESULT: BookRewardResult = {
   bookStarsGranted: 0,
+  bookStarsRevoked: 0,
   heartsGranted: 0,
   proseCredited: false,
   englishCredited: false,
@@ -74,25 +98,55 @@ function getCreditedCount(
   return Object.values(ledger).filter((record) => Boolean(record[field])).length;
 }
 
+function creditBookStars(state: RewardLedgerState, amount: number) {
+  const debtPaid = Math.min(state.bookStarDebt, amount);
+  return {
+    bookStars: state.bookStars + amount - debtPaid,
+    bookStarDebt: state.bookStarDebt - debtPaid,
+  };
+}
+
+function revokeBookStars(state: RewardLedgerState, amount: number) {
+  const starsRemoved = Math.min(state.bookStars, amount);
+  return {
+    bookStars: state.bookStars - starsRemoved,
+    bookStarDebt: state.bookStarDebt + amount - starsRemoved,
+  };
+}
+
+function rewardLedgerFromStore(state: GameStore): RewardLedgerState {
+  return {
+    bookStars: state.bookStars,
+    bookStarDebt: state.bookStarDebt,
+    hearts: state.hearts,
+    bookRewardLedger: state.bookRewardLedger,
+    claimedHeartMilestones: state.claimedHeartMilestones,
+    claimedBookStarMilestones: state.claimedBookStarMilestones,
+  };
+}
+
 export function calculateBookRewardUpdate(
   state: RewardLedgerState,
   book: RewardableBook,
   now = new Date().toISOString()
 ): RewardLedgerUpdate {
   const existingRecord = state.bookRewardLedger[book.id];
+  const shouldGrantBookStars = !existingRecord || !existingRecord.bookStarActive;
   const nextRecord: BookRewardRecord = existingRecord
-    ? { ...existingRecord }
-    : { bookRewardedAt: now };
+    ? {
+        ...existingRecord,
+        bookStarActive: true,
+        bookStarRevokedAt: undefined,
+      }
+    : {
+        bookRewardedAt: now,
+        bookStarActive: true,
+      };
 
-  let bookStarsGranted = 0;
   let heartsGranted = 0;
   let proseCredited = false;
   let englishCredited = false;
-  const claimedMilestones = [...state.claimedHeartMilestones];
-
-  if (!existingRecord) {
-    bookStarsGranted = 10;
-  }
+  const claimedHeartMilestones = [...state.claimedHeartMilestones];
 
   if (book.isProse && !nextRecord.proseCreditedAt) {
     const nextCount = getCreditedCount(state.bookRewardLedger, 'proseCreditedAt') + 1;
@@ -101,8 +155,8 @@ export function calculateBookRewardUpdate(
 
     if (nextCount % 10 === 0) {
       const milestoneKey = `prose:${nextCount}`;
-      if (!claimedMilestones.includes(milestoneKey)) {
-        claimedMilestones.push(milestoneKey);
+      if (!claimedHeartMilestones.includes(milestoneKey)) {
+        claimedHeartMilestones.push(milestoneKey);
         heartsGranted += 1;
       }
     }
@@ -115,99 +169,248 @@ export function calculateBookRewardUpdate(
 
     if (nextCount % 10 === 0) {
       const milestoneKey = `english:${nextCount}`;
-      if (!claimedMilestones.includes(milestoneKey)) {
-        claimedMilestones.push(milestoneKey);
+      if (!claimedHeartMilestones.includes(milestoneKey)) {
+        claimedHeartMilestones.push(milestoneKey);
         heartsGranted += 1;
       }
     }
   }
 
-  const result = {
-    bookStarsGranted,
-    heartsGranted,
-    proseCredited,
-    englishCredited,
-  };
-
-  if (!bookStarsGranted && !proseCredited && !englishCredited) {
+  if (!shouldGrantBookStars && !proseCredited && !englishCredited) {
     return { state, result: EMPTY_REWARD_RESULT };
   }
 
+  const wallet = shouldGrantBookStars
+    ? creditBookStars(state, BOOK_STARS_PER_BOOK)
+    : { bookStars: state.bookStars, bookStarDebt: state.bookStarDebt };
+
   return {
     state: {
-      bookStars: state.bookStars + bookStarsGranted,
+      ...state,
+      ...wallet,
       hearts: state.hearts + heartsGranted,
       bookRewardLedger: {
         ...state.bookRewardLedger,
         [book.id]: nextRecord,
       },
-      claimedHeartMilestones: claimedMilestones,
+      claimedHeartMilestones,
     },
-    result,
+    result: {
+      bookStarsGranted: shouldGrantBookStars ? BOOK_STARS_PER_BOOK : 0,
+      bookStarsRevoked: 0,
+      heartsGranted,
+      proseCredited,
+      englishCredited,
+    },
   };
+}
+
+export function calculateBookRewardRevocation(
+  state: RewardLedgerState,
+  bookId: string,
+  now = new Date().toISOString()
+): RewardLedgerUpdate {
+  const record = state.bookRewardLedger[bookId];
+  if (!record?.bookStarActive) {
+    return { state, result: EMPTY_REWARD_RESULT };
+  }
+
+  const wallet = revokeBookStars(state, BOOK_STARS_PER_BOOK);
+  return {
+    state: {
+      ...state,
+      ...wallet,
+      bookRewardLedger: {
+        ...state.bookRewardLedger,
+        [bookId]: {
+          ...record,
+          bookStarActive: false,
+          bookStarRevokedAt: now,
+        },
+      },
+    },
+    result: {
+      ...EMPTY_REWARD_RESULT,
+      bookStarsRevoked: BOOK_STARS_PER_BOOK,
+    },
+  };
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function sortReadBooks(books: RewardableBook[]) {
+  return [...books].sort((left, right) => {
+    const timeDifference = (left.stampedAt ?? '').localeCompare(right.stampedAt ?? '');
+    return timeDifference || left.id.localeCompare(right.id);
+  });
+}
+
+function normalizeStringArray(value: unknown, fallback: string[] = []) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : fallback;
+}
+
+export function migratePersistedGameState(persistedState: unknown) {
+  const state = (persistedState ?? {}) as Partial<GameStore>;
+  const rawLedger = state.bookRewardLedger ?? {};
+  const bookRewardLedger = Object.fromEntries(
+    Object.entries(rawLedger).map(([bookId, record]) => [
+      bookId,
+      {
+        ...record,
+        bookStarActive: record.bookStarActive ?? true,
+      },
+    ])
+  );
+  const ownedItemIds = Array.from(new Set([
+    ...STARTER_ITEM_IDS,
+    ...normalizeStringArray(state.ownedItemIds),
+  ]));
+
+  return {
+    ...state,
+    bookStars: typeof state.bookStars === 'number' ? Math.max(0, state.bookStars) : 0,
+    bookStarDebt: typeof state.bookStarDebt === 'number' ? Math.max(0, state.bookStarDebt) : 0,
+    hearts: typeof state.hearts === 'number' ? Math.max(0, state.hearts) : 0,
+    bookRewardLedger,
+    claimedHeartMilestones: normalizeStringArray(state.claimedHeartMilestones),
+    claimedBookStarMilestones: Array.isArray(state.claimedBookStarMilestones)
+      ? state.claimedBookStarMilestones.filter((milestone): milestone is number => typeof milestone === 'number')
+      : [],
+    rabbitAdopted: state.rabbitAdopted ?? false,
+    ownedItemIds,
+    equippedBearItems: normalizeStringArray(state.equippedBearItems, ['outfit-basic']),
+    equippedRabbitItems: normalizeStringArray(state.equippedRabbitItems),
+    itemTransforms: state.itemTransforms ?? {},
+  } as GameStore;
 }
 
 export const useGameStore = create<GameStore>()(
   persist(
     (set, get) => ({
       bookStars: 0,
+      bookStarDebt: 0,
       hearts: 0,
       bookRewardLedger: {},
       claimedHeartMilestones: [],
+      claimedBookStarMilestones: [],
       rabbitAdopted: false,
       ownedItemIds: STARTER_ITEM_IDS,
       equippedBearItems: ['outfit-basic'],
       equippedRabbitItems: [],
       itemTransforms: {},
 
-      recordBookRewards: (book) => {
-        const state = get();
-        const update = calculateBookRewardUpdate(state, book);
-        if (update.state !== state) set(update.state);
-        return update.result;
-      },
+      syncReadingProgress: (books) => {
+        const currentState = get();
+        const now = new Date().toISOString();
+        const sortedBooks = sortReadBooks(books);
+        const readBookIds = new Set(sortedBooks.map((book) => book.id));
+        let rewardState = rewardLedgerFromStore(currentState);
+        let ownedItemIds = [...currentState.ownedItemIds];
 
-      syncMilestoneItems: (readCount) => {
-        const state = get();
-        const newlyUnlocked = GAME_ITEMS
+        sortedBooks.forEach((book, index) => {
+          rewardState = calculateBookRewardUpdate(rewardState, book, now).state;
+          const record = rewardState.bookRewardLedger[book.id];
+          if (record.discoveryRolledAt) return;
+
+          const ordinal = index + 1;
+          const world = getCurrentReadingWorld(ordinal - 1);
+          const positionInWorld = ordinal - world.unlockAt;
+          const availableDiscoveries = GAME_ITEMS.filter(
+            (item) =>
+              item.source === 'discovery' &&
+              item.worldId === world.id &&
+              !ownedItemIds.includes(item.id)
+          );
+          const roll = hashString(`${book.id}:${world.id}`);
+          const guaranteedDiscovery = positionInWorld === 50 || positionInWorld === 100;
+          const shouldDiscover = availableDiscoveries.length > 0 &&
+            (roll % 100 < 8 || guaranteedDiscovery);
+          const discoveredItem = shouldDiscover
+            ? availableDiscoveries[roll % availableDiscoveries.length]
+            : undefined;
+
+          rewardState = {
+            ...rewardState,
+            bookRewardLedger: {
+              ...rewardState.bookRewardLedger,
+              [book.id]: {
+                ...record,
+                discoveryRolledAt: now,
+                discoveredItemId: discoveredItem?.id,
+              },
+            },
+          };
+          if (discoveredItem) ownedItemIds.push(discoveredItem.id);
+        });
+
+        Object.entries(rewardState.bookRewardLedger).forEach(([bookId, record]) => {
+          if (record.bookStarActive && !readBookIds.has(bookId)) {
+            rewardState = calculateBookRewardRevocation(rewardState, bookId, now).state;
+          }
+        });
+
+        const claimedBookStarMilestones = [...rewardState.claimedBookStarMilestones];
+        BOOK_STAR_MILESTONES.forEach((milestone) => {
+          if (sortedBooks.length < milestone || claimedBookStarMilestones.includes(milestone)) return;
+          const wallet = creditBookStars(rewardState, getMilestoneBookStars(milestone));
+          rewardState = { ...rewardState, ...wallet };
+          claimedBookStarMilestones.push(milestone);
+        });
+        rewardState = { ...rewardState, claimedBookStarMilestones };
+
+        const automaticRewardIds = GAME_ITEMS
           .filter(
             (item) =>
-              item.source === 'milestone' &&
-              (item.unlockAt ?? Number.POSITIVE_INFINITY) <= readCount &&
-              !state.ownedItemIds.includes(item.id)
+              (item.source === 'milestone' || item.source === 'legendary') &&
+              (item.unlockAt ?? Number.POSITIVE_INFINITY) <= sortedBooks.length &&
+              !ownedItemIds.includes(item.id)
           )
           .map((item) => item.id);
+        ownedItemIds = Array.from(new Set([...ownedItemIds, ...automaticRewardIds]));
 
-        if (newlyUnlocked.length === 0) return;
-        set({ ownedItemIds: [...state.ownedItemIds, ...newlyUnlocked] });
+        set({
+          ...rewardState,
+          ownedItemIds,
+        });
       },
 
-      purchaseItem: (itemId) => {
+      purchaseItem: (itemId, readCount) => {
         const state = get();
         const item = getGameItem(itemId);
 
-        if (!item || !item.currency || item.price === undefined) return false;
-        if (state.ownedItemIds.includes(itemId)) return true;
+        if (!item || !item.currency || item.price === undefined) return 'not-for-sale';
+        if (state.ownedItemIds.includes(itemId)) return 'owned';
+        if (readCount < getItemRequiredBooks(item)) return 'locked';
+        if (item.source !== 'shop' && item.source !== 'heart-shop') return 'not-for-sale';
         if (item.area === 'rabbit' && item.id !== 'rabbit-pet' && !state.rabbitAdopted) {
-          return false;
+          return 'needs-rabbit';
         }
 
         if (item.currency === 'bookStars') {
-          if (state.bookStars < item.price) return false;
+          if (state.bookStars < item.price) return 'insufficient-book-stars';
           set({
             bookStars: state.bookStars - item.price,
             ownedItemIds: [...state.ownedItemIds, itemId],
           });
-          return true;
+          return 'purchased';
         }
 
-        if (state.hearts < item.price) return false;
+        if (state.hearts < item.price) return 'insufficient-hearts';
         set({
           hearts: state.hearts - item.price,
           rabbitAdopted: item.id === 'rabbit-pet' ? true : state.rabbitAdopted,
           ownedItemIds: [...state.ownedItemIds, itemId],
         });
-        return true;
+        return 'purchased';
       },
 
       toggleEquippedItem: (itemId) => {
@@ -247,6 +450,7 @@ export const useGameStore = create<GameStore>()(
     {
       name: GAME_STORAGE_KEY,
       version: GAME_STORAGE_VERSION,
+      migrate: migratePersistedGameState,
     }
   )
 );

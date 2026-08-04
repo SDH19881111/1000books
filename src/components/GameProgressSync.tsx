@@ -6,20 +6,19 @@ import { useGameStore } from '@/store/useGameStore';
 
 export default function GameProgressSync() {
   const books = useBookStore((state) => state.books);
-  const recordBookRewards = useGameStore((state) => state.recordBookRewards);
-  const syncMilestoneItems = useGameStore((state) => state.syncMilestoneItems);
+  const syncReadingProgress = useGameStore((state) => state.syncReadingProgress);
 
   useEffect(() => {
     const readBooks = books.filter((book) => book.status === 'read');
-    readBooks.forEach((book) => {
-      recordBookRewards({
+    syncReadingProgress(
+      readBooks.map((book) => ({
         id: book.id,
         isProse: book.isProse,
         isEnglish: book.isEnglish,
-      });
-    });
-    syncMilestoneItems(readBooks.length);
-  }, [books, recordBookRewards, syncMilestoneItems]);
+        stampedAt: book.stampedAt,
+      }))
+    );
+  }, [books, syncReadingProgress]);
 
   return null;
 }

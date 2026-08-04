@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { BOOK_STAR_MILESTONES } from '@/lib/bookEconomy';
 
 export interface Book {
   id: string;
@@ -21,7 +22,7 @@ export interface Reward {
   unlockedAt: string;
 }
 
-export const MILESTONES = [10, 30, 50, 100, 200, 300, 500, 1000];
+export const MILESTONES = BOOK_STAR_MILESTONES;
 export const BOOK_STORAGE_KEY = '1000books-storage';
 export const BOOK_STORAGE_VERSION = 2;
 
@@ -124,7 +125,9 @@ export const useBookStore = create<BookStore>()(
         }));
 
         const newReadCount = prevReadCount + 1;
-        const isNewMilestone = MILESTONES.includes(newReadCount);
+        const isMilestone = MILESTONES.includes(newReadCount);
+        const isNewMilestone = isMilestone &&
+          !state.rewards.some((reward) => reward.milestone === newReadCount);
 
         if (isNewMilestone) {
           const rewardInfo = MILESTONE_REWARDS[newReadCount];
@@ -150,11 +153,9 @@ export const useBookStore = create<BookStore>()(
           const newBooks = s.books.map((b) =>
             b.id === id ? { ...b, status: 'unread' as const, stampedAt: undefined } : b
           );
-          const newReadCount = newBooks.filter((b) => b.status === 'read').length;
           return {
             books: newBooks,
             pendingUndo: null,
-            rewards: s.rewards.filter((r) => r.milestone <= newReadCount),
           };
         });
       },

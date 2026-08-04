@@ -24,9 +24,11 @@ interface BackupEnvelope {
 
 interface GameBackupState {
   bookStars: number;
+  bookStarDebt?: number;
   hearts: number;
   bookRewardLedger: Record<string, BookRewardRecord>;
   claimedHeartMilestones: string[];
+  claimedBookStarMilestones?: number[];
   rabbitAdopted: boolean;
   ownedItemIds: string[];
   equippedBearItems: string[];
@@ -87,6 +89,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'number');
+}
+
 function isValidBackup(value: unknown): value is BackupEnvelope {
   if (!isRecord(value) || !isRecord(value.state)) return false;
 
@@ -106,8 +112,12 @@ function isBookRewardRecord(value: unknown): value is BookRewardRecord {
   if (!isRecord(value)) return false;
   return (
     typeof value.bookRewardedAt === 'string' &&
+    (value.bookStarActive === undefined || typeof value.bookStarActive === 'boolean') &&
+    (value.bookStarRevokedAt === undefined || typeof value.bookStarRevokedAt === 'string') &&
     (value.proseCreditedAt === undefined || typeof value.proseCreditedAt === 'string') &&
-    (value.englishCreditedAt === undefined || typeof value.englishCreditedAt === 'string')
+    (value.englishCreditedAt === undefined || typeof value.englishCreditedAt === 'string') &&
+    (value.discoveryRolledAt === undefined || typeof value.discoveryRolledAt === 'string') &&
+    (value.discoveredItemId === undefined || typeof value.discoveredItemId === 'string')
   );
 }
 
@@ -133,9 +143,11 @@ function isValidGameBackup(value: unknown): value is GameBackupEnvelope {
 
   return (
     typeof state.bookStars === 'number' &&
+    (state.bookStarDebt === undefined || typeof state.bookStarDebt === 'number') &&
     typeof state.hearts === 'number' &&
     isRecordOf(state.bookRewardLedger, isBookRewardRecord) &&
     isStringArray(state.claimedHeartMilestones) &&
+    (state.claimedBookStarMilestones === undefined || isNumberArray(state.claimedBookStarMilestones)) &&
     typeof state.rabbitAdopted === 'boolean' &&
     isStringArray(state.ownedItemIds) &&
     isStringArray(state.equippedBearItems) &&

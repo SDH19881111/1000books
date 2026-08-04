@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { getMilestoneBookStars } from '@/lib/bookEconomy';
 import { useBookStore, MILESTONES, MILESTONE_REWARDS } from '@/store/useBookStore';
 import Navbar from '@/components/Navbar';
 
@@ -74,6 +75,9 @@ export default function RewardsPage() {
 
                   <p className={`text-xs font-bold ${isUnlocked ? 'text-orange-600' : 'text-gray-400'}`}>
                     {milestone}권 달성
+                  </p>
+                  <p className={`mt-1 text-[11px] font-black ${isUnlocked ? 'text-amber-600' : 'text-gray-400'}`}>
+                    ★ +{getMilestoneBookStars(milestone)}책별
                   </p>
                 </div>
 
