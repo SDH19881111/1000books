@@ -14,7 +14,7 @@ import {
 } from '@/lib/gameCatalog';
 
 export const GAME_STORAGE_KEY = '1000books-game-storage';
-export const GAME_STORAGE_VERSION = 2;
+export const GAME_STORAGE_VERSION = 3;
 
 export interface RewardableBook {
   id: string;
@@ -38,6 +38,11 @@ export interface ItemTransform {
   y: number;
   scale: number;
 }
+
+export const DEFAULT_ITEM_TRANSFORM: ItemTransform = { x: 0, y: 0, scale: 1 };
+export const MIN_ITEM_SCALE = 0.7;
+export const MAX_ITEM_SCALE = 1.5;
+const MAX_ITEM_OFFSET = 0.75;
 
 export interface BookRewardResult {
   bookStarsGranted: number;
@@ -258,6 +263,41 @@ function normalizeStringArray(value: unknown, fallback: string[] = []) {
     : fallback;
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function normalizeItemTransform(value: unknown): ItemTransform {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_ITEM_TRANSFORM };
+  const transform = value as Partial<ItemTransform>;
+  const rawX = typeof transform.x === 'number' && Number.isFinite(transform.x) ? transform.x : 0;
+  const rawY = typeof transform.y === 'number' && Number.isFinite(transform.y) ? transform.y : 0;
+  const rawScale = typeof transform.scale === 'number' && Number.isFinite(transform.scale)
+    ? transform.scale
+    : 1;
+
+  // v2에 저장된 값이 픽셀 좌표라면 장면 크기 비율로 변환합니다.
+  const normalizedX = Math.abs(rawX) <= 1 ? rawX : rawX / 360;
+  const normalizedY = Math.abs(rawY) <= 1 ? rawY : rawY / 360;
+
+  return {
+    x: clamp(normalizedX, -MAX_ITEM_OFFSET, MAX_ITEM_OFFSET),
+    y: clamp(normalizedY, -MAX_ITEM_OFFSET, MAX_ITEM_OFFSET),
+    scale: clamp(rawScale, MIN_ITEM_SCALE, MAX_ITEM_SCALE),
+  };
+}
+
+function normalizeItemTransforms(value: unknown) {
+  if (!value || typeof value !== 'object') return {};
+
+  return Object.fromEntries(
+    Object.entries(value).map(([itemId, transform]) => [
+      itemId,
+      normalizeItemTransform(transform),
+    ])
+  );
+}
+
 export function migratePersistedGameState(persistedState: unknown) {
   const state = (persistedState ?? {}) as Partial<GameStore>;
   const rawLedger = state.bookRewardLedger ?? {};
@@ -289,7 +329,7 @@ export function migratePersistedGameState(persistedState: unknown) {
     ownedItemIds,
     equippedBearItems: normalizeStringArray(state.equippedBearItems, ['outfit-basic']),
     equippedRabbitItems: normalizeStringArray(state.equippedRabbitItems),
-    itemTransforms: state.itemTransforms ?? {},
+    itemTransforms: normalizeItemTransforms(state.itemTransforms),
   } as GameStore;
 }
 
@@ -424,13 +464,22 @@ export const useGameStore = create<GameStore>()(
           ? state.equippedRabbitItems
           : state.equippedBearItems;
         const isEquipped = equippedItems.includes(itemId);
-        const sameSlotIds = GAME_ITEMS
-          .filter((candidate) => candidate.slot === item.slot && candidate.area === item.area)
-          .map((candidate) => candidate.id);
+        // 방과 마당의 같은 종류 아이템도 함께 놓고 배치 편집에서 정리할 수 있게 합니다.
+        // 곰 몸체 이미지를 통째로 바꾸는 전신 의상만 실제 렌더링 구조상 한 벌씩 유지합니다.
+        const replacementIds = item.area === 'character' && item.slot === 'outfit' && item.art
+          ? GAME_ITEMS
+              .filter(
+                (candidate) =>
+                  candidate.area === 'character' &&
+                  candidate.slot === 'outfit' &&
+                  Boolean(candidate.art)
+              )
+              .map((candidate) => candidate.id)
+          : [];
         const nextEquipped = isEquipped
           ? equippedItems.filter((id) => id !== itemId)
           : [
-              ...equippedItems.filter((id) => !sameSlotIds.includes(id)),
+              ...equippedItems.filter((id) => !replacementIds.includes(id)),
               itemId,
             ];
 
@@ -443,7 +492,10 @@ export const useGameStore = create<GameStore>()(
 
       setItemTransform: (itemId, transform) => {
         set((state) => ({
-          itemTransforms: { ...state.itemTransforms, [itemId]: transform },
+          itemTransforms: {
+            ...state.itemTransforms,
+            [itemId]: normalizeItemTransform(transform),
+          },
         }));
       },
     }),
