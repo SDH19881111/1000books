@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useBookStore, MILESTONES } from '@/store/useBookStore';
 import Navbar from '@/components/Navbar';
 
@@ -9,7 +8,6 @@ const TOTAL = 1000;
 const COLS = 25;
 
 export default function MapPage() {
-  const [hoveredCell, setHoveredCell] = useState<number | null>(null);
   const getReadCount = useBookStore((s) => s.getReadCount);
   const readCount = getReadCount();
 
@@ -82,14 +80,11 @@ export default function MapPage() {
             {Array.from({ length: TOTAL }).map((_, i) => {
               const num = i + 1;
               const state = getCellState(num);
-              const isHovered = hoveredCell === num;
               const isMilestone = milestoneSet.has(num);
 
               return (
                 <motion.div
                   key={i}
-                  onHoverStart={() => setHoveredCell(num)}
-                  onHoverEnd={() => setHoveredCell(null)}
                   className={`relative cursor-default rounded-[2px] ${
                     state === 'milestone'
                       ? 'bg-gradient-to-br from-yellow-300 to-orange-400'

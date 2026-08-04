@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { useBookStore } from '@/store/useBookStore';
 
 const navItems = [
   { href: '/',        icon: '🏠', label: '홈' },
   { href: '/books',   icon: '📚', label: '내 책' },
+  { href: '/world',   icon: '🐻', label: '책별 마을' },
   { href: '/map',     icon: '🗺️', label: '지도' },
   { href: '/rewards', icon: '🎁', label: '보상' },
   { href: '/admin',   icon: '👩', label: '관리자' },
@@ -15,7 +15,6 @@ const navItems = [
 
 export default function Navbar() {
   const pathname = usePathname();
-  const readCount = useBookStore((s) => s.getReadCount());
 
   return (
     <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50">

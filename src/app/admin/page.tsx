@@ -6,6 +6,7 @@ import { useBookStore, Book } from '@/store/useBookStore';
 import Navbar from '@/components/Navbar';
 import BookSearch from '@/components/BookSearch';
 import DataBackup from '@/components/DataBackup';
+import BookEditModal from '@/components/BookEditModal';
 
 const ADMIN_PIN = '1234';
 
@@ -15,7 +16,6 @@ export default function AdminPage() {
   const [pinError, setPinError] = useState(false);
   const [activeSection, setActiveSection] = useState<'books' | 'add'>('books');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
-  const [showAddSearch, setShowAddSearch] = useState(false);
 
   const books = useBookStore((s) => s.books);
   const removeBook = useBookStore((s) => s.removeBook);
@@ -25,17 +25,6 @@ export default function AdminPage() {
   const getReadCount = useBookStore((s) => s.getReadCount);
 
   const readCount = getReadCount();
-
-  const handlePinSubmit = () => {
-    if (pin === ADMIN_PIN) {
-      setIsAuthenticated(true);
-      setPinError(false);
-    } else {
-      setPinError(true);
-      setPin('');
-      setTimeout(() => setPinError(false), 2000);
-    }
-  };
 
   // PIN 입력 화면
   if (!isAuthenticated) {
@@ -253,17 +242,36 @@ export default function AdminPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-gray-700 line-clamp-1">{book.title}</p>
                     <p className="text-xs text-gray-400">{book.author}</p>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      book.status === 'read'
-                        ? 'bg-green-100 text-green-600'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {book.status === 'read' ? '✅ 읽음' : '📖 미읽음'}
-                    </span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        book.status === 'read'
+                          ? 'bg-green-100 text-green-600'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {book.status === 'read' ? '✅ 읽음' : '📖 미읽음'}
+                      </span>
+                      {book.isProse && (
+                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                          📖 줄글
+                        </span>
+                      )}
+                      {book.isEnglish && (
+                        <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700">
+                          🔤 영어
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* 액션 버튼들 */}
                   <div className="flex flex-col gap-1 flex-shrink-0">
+                    <motion.button
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setEditingBook(book)}
+                      className="rounded-lg bg-purple-100 px-2 py-1 text-xs font-bold text-purple-600 hover:bg-purple-200"
+                    >
+                      ✏️ 수정
+                    </motion.button>
                     {/* 도장 토글 */}
                     <motion.button
                       whileTap={{ scale: 0.9 }}
@@ -304,6 +312,15 @@ export default function AdminPage() {
 
       </div>
 
+      <BookEditModal
+        book={editingBook}
+        onClose={() => setEditingBook(null)}
+        onSave={(updates) => {
+          if (!editingBook) return;
+          updateBook(editingBook.id, updates);
+          setEditingBook(null);
+        }}
+      />
       <Navbar />
     </div>
   );

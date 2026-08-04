@@ -9,11 +9,12 @@ interface BookCardProps {
   book: Book;
   onMilestone?: (milestone: number) => void;
   onRemove?: (id: string) => void;
+  onEdit?: (book: Book) => void;
 }
 
 const DEFAULT_COVERS = ['📗', '📘', '📙', '📕', '📒', '📓'];
 
-export default function BookCard({ book, onMilestone, onRemove }: BookCardProps) {
+export default function BookCard({ book, onMilestone, onRemove, onEdit }: BookCardProps) {
   const coverEmoji = DEFAULT_COVERS[Math.abs(book.id.charCodeAt(5) || 0) % DEFAULT_COVERS.length];
 
   return (
@@ -68,6 +69,20 @@ export default function BookCard({ book, onMilestone, onRemove }: BookCardProps)
           {book.title}
         </h3>
         <p className="text-xs text-gray-400 mt-0.5 truncate">{book.author || '작가 미상'}</p>
+        {(book.isProse || book.isEnglish) && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {book.isProse && (
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                📖 줄글
+              </span>
+            )}
+            {book.isEnglish && (
+              <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-bold text-sky-700">
+                🔤 영어
+              </span>
+            )}
+          </div>
+        )}
         {book.stampedAt && (
           <p className="text-[10px] text-pink-400 mt-1">
             ✅ {new Date(book.stampedAt).toLocaleDateString('ko-KR')} 완독
@@ -88,6 +103,14 @@ export default function BookCard({ book, onMilestone, onRemove }: BookCardProps)
             className="text-[10px] text-gray-300 hover:text-red-400 transition-colors"
           >
             삭제
+          </button>
+        )}
+        {onEdit && (
+          <button
+            onClick={() => onEdit(book)}
+            className="text-[10px] text-purple-400 transition-colors hover:text-purple-600"
+          >
+            수정
           </button>
         )}
       </div>

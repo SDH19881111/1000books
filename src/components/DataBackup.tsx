@@ -3,9 +3,15 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BOOK_STORAGE_KEY, Book, Reward } from '@/store/useBookStore';
+import { GAME_STORAGE_KEY, BookRewardRecord, ItemTransform } from '@/store/useGameStore';
+
+interface BackupBook extends Omit<Book, 'isProse' | 'isEnglish'> {
+  isProse?: boolean;
+  isEnglish?: boolean;
+}
 
 interface BackupState {
-  books: Book[];
+  books: BackupBook[];
   rewards: Reward[];
   lastPraiseMessage: string;
   pendingUndo: string | null;
@@ -14,6 +20,30 @@ interface BackupState {
 interface BackupEnvelope {
   state: BackupState;
   version?: number;
+}
+
+interface GameBackupState {
+  bookStars: number;
+  hearts: number;
+  bookRewardLedger: Record<string, BookRewardRecord>;
+  claimedHeartMilestones: string[];
+  rabbitAdopted: boolean;
+  ownedItemIds: string[];
+  equippedBearItems: string[];
+  equippedRabbitItems: string[];
+  itemTransforms: Record<string, ItemTransform>;
+}
+
+interface GameBackupEnvelope {
+  state: GameBackupState;
+  version?: number;
+}
+
+interface CombinedBackup {
+  format: '1000books-combined-backup';
+  createdAt: string;
+  bookStorage: BackupEnvelope;
+  gameStorage?: GameBackupEnvelope;
 }
 
 interface Feedback {
@@ -25,7 +55,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isBook(value: unknown): value is Book {
+function isBook(value: unknown): value is BackupBook {
   if (!isRecord(value)) return false;
 
   return (
@@ -33,6 +63,8 @@ function isBook(value: unknown): value is Book {
     typeof value.title === 'string' &&
     typeof value.author === 'string' &&
     (value.coverUrl === undefined || typeof value.coverUrl === 'string') &&
+    (value.isProse === undefined || typeof value.isProse === 'boolean') &&
+    (value.isEnglish === undefined || typeof value.isEnglish === 'boolean') &&
     (value.status === 'unread' || value.status === 'read') &&
     (value.stampedAt === undefined || typeof value.stampedAt === 'string') &&
     typeof value.addedAt === 'string'
@@ -51,6 +83,10 @@ function isReward(value: unknown): value is Reward {
   );
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
 function isValidBackup(value: unknown): value is BackupEnvelope {
   if (!isRecord(value) || !isRecord(value.state)) return false;
 
@@ -63,6 +99,59 @@ function isValidBackup(value: unknown): value is BackupEnvelope {
     typeof state.lastPraiseMessage === 'string' &&
     (state.pendingUndo === null || typeof state.pendingUndo === 'string') &&
     (value.version === undefined || typeof value.version === 'number')
+  );
+}
+
+function isBookRewardRecord(value: unknown): value is BookRewardRecord {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.bookRewardedAt === 'string' &&
+    (value.proseCreditedAt === undefined || typeof value.proseCreditedAt === 'string') &&
+    (value.englishCreditedAt === undefined || typeof value.englishCreditedAt === 'string')
+  );
+}
+
+function isItemTransform(value: unknown): value is ItemTransform {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.x === 'number' &&
+    typeof value.y === 'number' &&
+    typeof value.scale === 'number'
+  );
+}
+
+function isRecordOf<T>(
+  value: unknown,
+  validator: (entry: unknown) => entry is T
+): value is Record<string, T> {
+  return isRecord(value) && Object.values(value).every(validator);
+}
+
+function isValidGameBackup(value: unknown): value is GameBackupEnvelope {
+  if (!isRecord(value) || !isRecord(value.state)) return false;
+  const { state } = value;
+
+  return (
+    typeof state.bookStars === 'number' &&
+    typeof state.hearts === 'number' &&
+    isRecordOf(state.bookRewardLedger, isBookRewardRecord) &&
+    isStringArray(state.claimedHeartMilestones) &&
+    typeof state.rabbitAdopted === 'boolean' &&
+    isStringArray(state.ownedItemIds) &&
+    isStringArray(state.equippedBearItems) &&
+    isStringArray(state.equippedRabbitItems) &&
+    isRecordOf(state.itemTransforms, isItemTransform) &&
+    (value.version === undefined || typeof value.version === 'number')
+  );
+}
+
+function isCombinedBackup(value: unknown): value is CombinedBackup {
+  if (!isRecord(value)) return false;
+  return (
+    value.format === '1000books-combined-backup' &&
+    typeof value.createdAt === 'string' &&
+    isValidBackup(value.bookStorage) &&
+    (value.gameStorage === undefined || isValidGameBackup(value.gameStorage))
   );
 }
 
@@ -105,8 +194,25 @@ export default function DataBackup() {
         throw new Error('저장된 데이터 형식을 확인할 수 없습니다.');
       }
 
+      const storedGameData = localStorage.getItem(GAME_STORAGE_KEY);
+      let gameStorage: GameBackupEnvelope | undefined;
+      if (storedGameData) {
+        const parsedGameData: unknown = JSON.parse(storedGameData);
+        if (!isValidGameBackup(parsedGameData)) {
+          throw new Error('저장된 게임 보상 데이터 형식을 확인할 수 없습니다.');
+        }
+        gameStorage = parsedGameData;
+      }
+
+      const backupDocument: CombinedBackup = {
+        format: '1000books-combined-backup',
+        createdAt: new Date().toISOString(),
+        bookStorage: parsedData,
+        gameStorage,
+      };
+
       const file = new File(
-        [JSON.stringify(parsedData, null, 2)],
+        [JSON.stringify(backupDocument, null, 2)],
         getBackupFilename(),
         { type: 'application/json' }
       );
@@ -156,19 +262,28 @@ export default function DataBackup() {
     try {
       const fileContents = await file.text();
       const parsedData: unknown = JSON.parse(fileContents);
+      const combinedBackup = isCombinedBackup(parsedData) ? parsedData : null;
+      const legacyBackup = !combinedBackup && isValidBackup(parsedData) ? parsedData : null;
 
-      if (!isValidBackup(parsedData)) {
+      if (!combinedBackup && !legacyBackup) {
         throw new Error('1000books에서 만든 올바른 백업 파일이 아닙니다.');
       }
 
+      const bookBackup = combinedBackup?.bookStorage ?? legacyBackup!;
+
       const shouldRestore = window.confirm(
-        `백업 파일의 책 ${parsedData.state.books.length}권으로 현재 데이터를 교체할까요?\n\n` +
+        `백업 파일의 책 ${bookBackup.state.books.length}권으로 현재 데이터를 교체할까요?\n\n` +
         '아직 현재 데이터를 백업하지 않았다면 취소를 눌러주세요.'
       );
 
       if (!shouldRestore) return;
 
-      localStorage.setItem(BOOK_STORAGE_KEY, JSON.stringify(parsedData));
+      localStorage.setItem(BOOK_STORAGE_KEY, JSON.stringify(bookBackup));
+      if (combinedBackup?.gameStorage) {
+        localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(combinedBackup.gameStorage));
+      } else {
+        localStorage.removeItem(GAME_STORAGE_KEY);
+      }
       setFeedback({
         type: 'success',
         message: '복원이 완료되었습니다. 화면을 새로 불러옵니다.',
@@ -189,7 +304,7 @@ export default function DataBackup() {
       <div>
         <h2 className="text-sm font-black text-gray-700">💾 데이터 백업·복원</h2>
         <p className="text-xs text-gray-400 mt-1">
-          독서 기록을 파일 앱이나 iCloud Drive에 안전하게 보관할 수 있어요.
+          독서 기록과 게임 보상을 파일 앱이나 iCloud Drive에 안전하게 보관할 수 있어요.
         </p>
       </div>
 
@@ -224,7 +339,7 @@ export default function DataBackup() {
       />
 
       <p className="text-[11px] leading-relaxed text-gray-400">
-        백업은 현재 데이터를 변경하지 않습니다. 복원은 파일 확인과 동의 후에만 현재 데이터를 교체합니다.
+        예전 백업 파일도 복원할 수 있습니다. 백업은 현재 데이터를 변경하지 않으며, 복원은 파일 확인과 동의 후에만 진행됩니다.
       </p>
 
       {feedback && (

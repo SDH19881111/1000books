@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR } from "next/font/google";
+import { Nanum_Pen_Script, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import GameProgressSync from "@/components/GameProgressSync";
 
 const notoSansKR = Noto_Sans_KR({
   subsets: ["latin"],
   weight: ["400", "500", "700", "900"],
   variable: "--font-noto",
+});
+
+const nanumPenScript = Nanum_Pen_Script({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-pen",
 });
 
 export const metadata: Metadata = {
@@ -19,15 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={notoSansKR.variable}>
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="ko" className={`${notoSansKR.variable} ${nanumPenScript.variable}`}>
       <body className="bg-pink-50 min-h-screen font-noto">
         <div className="max-w-md mx-auto min-h-screen bg-gradient-to-b from-pink-50 via-yellow-50 to-mint-50 relative overflow-hidden">
+          <GameProgressSync />
           {children}
         </div>
       </body>

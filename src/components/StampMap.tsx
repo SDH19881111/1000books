@@ -10,7 +10,6 @@ interface StampMapProps {
 
 export default function StampMap({ readCount, totalCells = 100 }: StampMapProps) {
   const cols = 10;
-  const rows = Math.ceil(totalCells / cols);
 
   // 마일스톤 위치 계산
   const milestoneSet = new Set(MILESTONES.filter((m) => m <= totalCells));
