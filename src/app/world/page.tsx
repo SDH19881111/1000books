@@ -61,19 +61,36 @@ const BASE_SPRITES: Record<string, SpriteDefinition> = {
   'rabbit-book': { sheet: 'rabbit', position: '100% 100%' },
 };
 
+const EXTRA_CROPPED_WORLD_SPRITES = new Set([
+  'world-cozy-room-8', // 책 읽는 새 친구
+  'world-cozy-room-10', // 책방 고양이
+]);
+
+function centeredGridPosition(cell: number, backgroundPercent: number) {
+  const backgroundRatio = backgroundPercent / 100;
+  const tileRatio = backgroundRatio / 4;
+  const centeredOffset = cell * tileRatio + (tileRatio - 1) / 2;
+  return `${(centeredOffset / (backgroundRatio - 1)) * 100}%`;
+}
+
 const WORLD_SPRITES = Object.fromEntries(
   READING_WORLDS.flatMap((world) =>
     Array.from({ length: 12 }, (_, index) => {
       const column = index % 4;
       const row = Math.floor(index / 4);
+      const spriteId = `world-${world.id}-${index}`;
+      const extraCrop = EXTRA_CROPPED_WORLD_SPRITES.has(spriteId);
+      const backgroundPercent = extraCrop ? 408 : 402;
 
       return [
-        `world-${world.id}-${index}`,
+        spriteId,
         {
           sheet: 'world',
-          position: `${(column / 3) * 100}% ${(row / 3) * 100}%`,
+          position: extraCrop
+            ? `${centeredGridPosition(column, backgroundPercent)} ${centeredGridPosition(row, backgroundPercent)}`
+            : `${(column / 3) * 100}% ${(row / 3) * 100}%`,
           backgroundImage: `url('/game/world-${world.id}-sprites.png')`,
-          backgroundSize: '402% 402%',
+          backgroundSize: `${backgroundPercent}% ${backgroundPercent}%`,
         } satisfies SpriteDefinition,
       ];
     })
