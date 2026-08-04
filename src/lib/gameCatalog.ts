@@ -50,86 +50,88 @@ interface ReadingRewardDefinition {
 
 const WORLD_SHOP_ITEMS: Record<string, ShopItemDefinition[]> = {
   'cozy-room': [
-    { id: 'hat-reading-ribbon', name: '독서 리본', area: 'character', slot: 'hat', emoji: '🎀', price: 40 },
-    { id: 'room-rug', name: '딸기 우유 러그', area: 'room', slot: 'rug', art: 'rug', emoji: '🍓', price: 50 },
-    { id: 'face-glasses', name: '동그란 안경', area: 'character', slot: 'face', art: 'glasses', emoji: '👓', price: 60 },
-    { id: 'back-bookbag', name: '꼬마 책가방', area: 'character', slot: 'back', emoji: '🎒', price: 60 },
-    { id: 'yard-flowers', name: '무지개 꽃밭', area: 'yard', slot: 'flowers', art: 'flowers', emoji: '🌈', price: 70 },
-    { id: 'room-shelf', name: '구름 책장', area: 'room', slot: 'shelf', art: 'shelf', emoji: '📚', price: 80 },
+    { id: 'hat-reading-ribbon', name: '독서 리본', area: 'character', slot: 'hat', emoji: '🎀', price: 60 },
+    { id: 'room-rug', name: '딸기 우유 러그', area: 'room', slot: 'rug', art: 'rug', emoji: '🍓', price: 80 },
+    { id: 'face-glasses', name: '동그란 안경', area: 'character', slot: 'face', art: 'glasses', emoji: '👓', price: 100 },
+    { id: 'back-bookbag', name: '꼬마 책가방', area: 'character', slot: 'back', emoji: '🎒', price: 110 },
+    { id: 'yard-flowers', name: '무지개 꽃밭', area: 'yard', slot: 'flowers', art: 'flowers', emoji: '🌈', price: 140 },
+    { id: 'room-shelf', name: '구름 책장', area: 'room', slot: 'shelf', art: 'shelf', emoji: '📚', price: 160 },
   ],
   'story-forest': [
-    { id: 'hat-forest-leaf', name: '이야기 나뭇잎 모자', area: 'character', slot: 'hat', emoji: '🍃', price: 50 },
-    { id: 'outfit-forest', name: '숲속 탐험가', area: 'character', slot: 'outfit', emoji: '🦺', price: 70 },
-    { id: 'backpack-mint', name: '별빛 가방', area: 'character', slot: 'back', art: 'backpack', emoji: '🎒', price: 80 },
-    { id: 'room-acorn-lamp', name: '도토리 조명', area: 'room', slot: 'lamp', emoji: '🌰', price: 90 },
-    { id: 'yard-firefly-lantern', name: '반딧불 랜턴', area: 'yard', slot: 'swing', emoji: '🏮', price: 100 },
-    { id: 'yard-treehouse', name: '비밀 나무집', area: 'yard', slot: 'tree', emoji: '🏡', price: 130 },
+    { id: 'hat-forest-leaf', name: '이야기 나뭇잎 모자', area: 'character', slot: 'hat', emoji: '🍃', price: 80 },
+    { id: 'outfit-forest', name: '숲속 탐험가', area: 'character', slot: 'outfit', emoji: '🦺', price: 100 },
+    { id: 'backpack-mint', name: '별빛 가방', area: 'character', slot: 'back', art: 'backpack', emoji: '🎒', price: 120 },
+    { id: 'room-acorn-lamp', name: '도토리 조명', area: 'room', slot: 'lamp', emoji: '🌰', price: 140 },
+    { id: 'yard-firefly-lantern', name: '반딧불 랜턴', area: 'yard', slot: 'swing', emoji: '🏮', price: 160 },
+    { id: 'yard-treehouse', name: '비밀 나무집', area: 'yard', slot: 'tree', emoji: '🏡', price: 200 },
   ],
   'ocean-library': [
-    { id: 'face-ocean-goggles', name: '바다 탐험 고글', area: 'character', slot: 'face', emoji: '🥽', price: 60 },
-    { id: 'hat-shell', name: '조개 왕관', area: 'character', slot: 'hat', emoji: '🐚', price: 80 },
-    { id: 'outfit-diver', name: '꼬마 잠수부', area: 'character', slot: 'outfit', emoji: '🤿', price: 100 },
-    { id: 'room-coral-lamp', name: '산호초 조명', area: 'room', slot: 'lamp', emoji: '🪸', price: 110 },
-    { id: 'yard-bubble-fountain', name: '방울 분수', area: 'yard', slot: 'flowers', emoji: '🫧', price: 120 },
-    { id: 'back-fish-bag', name: '열대어 가방', area: 'character', slot: 'back', emoji: '🐠', price: 130 },
+    { id: 'face-ocean-goggles', name: '바다 탐험 고글', area: 'character', slot: 'face', emoji: '🥽', price: 80 },
+    { id: 'hat-shell', name: '조개 왕관', area: 'character', slot: 'hat', emoji: '🐚', price: 110 },
+    { id: 'outfit-diver', name: '꼬마 잠수부', area: 'character', slot: 'outfit', emoji: '🤿', price: 130 },
+    { id: 'room-coral-lamp', name: '산호초 조명', area: 'room', slot: 'lamp', emoji: '🪸', price: 150 },
+    { id: 'yard-bubble-fountain', name: '방울 분수', area: 'yard', slot: 'flowers', emoji: '🫧', price: 170 },
+    { id: 'back-fish-bag', name: '열대어 가방', area: 'character', slot: 'back', emoji: '🐠', price: 210 },
   ],
   'magic-kingdom': [
     { id: 'hat-fairy', name: '요정 모자', area: 'character', slot: 'hat', emoji: '🪄', price: 90 },
-    { id: 'face-magic-sparkle', name: '마법 별빛', area: 'character', slot: 'face', emoji: '✨', price: 100 },
-    { id: 'room-magic-castle', name: '작은 마법성', area: 'room', slot: 'shelf', emoji: '🏰', price: 110 },
-    { id: 'yard-magic-crystal', name: '마법 수정', area: 'yard', slot: 'tree', emoji: '💎', price: 110 },
-    { id: 'back-magic-wand', name: '별빛 요술봉', area: 'character', slot: 'back', emoji: '🪄', price: 120 },
-    { id: 'outfit-wizard', name: '별빛 마법사', area: 'character', slot: 'outfit', art: 'outfit-wizard', emoji: '🧙‍♀️', price: 150 },
+    { id: 'face-magic-sparkle', name: '마법 별빛', area: 'character', slot: 'face', emoji: '✨', price: 120 },
+    { id: 'room-magic-castle', name: '작은 마법성', area: 'room', slot: 'shelf', emoji: '🏰', price: 140 },
+    { id: 'yard-magic-crystal', name: '마법 수정', area: 'yard', slot: 'tree', emoji: '💎', price: 160 },
+    { id: 'back-magic-wand', name: '별빛 요술봉', area: 'character', slot: 'back', emoji: '🪄', price: 180 },
+    { id: 'outfit-wizard', name: '별빛 마법사', area: 'character', slot: 'outfit', art: 'outfit-wizard', emoji: '🧙‍♀️', price: 210 },
   ],
   'cloud-village': [
-    { id: 'hat-cloud', name: '톡신 구름 모자', area: 'character', slot: 'hat', emoji: '☁️', price: 80 },
-    { id: 'face-rainbow', name: '무지개 페인팅', area: 'character', slot: 'face', emoji: '🌈', price: 100 },
-    { id: 'room-cloud-bed', name: '구름 침대', area: 'room', slot: 'rug', emoji: '🛏️', price: 120 },
-    { id: 'back-sky-bag', name: '하늘빛 가방', area: 'character', slot: 'back', emoji: '🎒', price: 130 },
-    { id: 'yard-swing', name: '구름 그네', area: 'yard', slot: 'swing', art: 'swing', emoji: '🎠', price: 140 },
-    { id: 'outfit-cloud-wings', name: '구름 날개 의상', area: 'character', slot: 'outfit', emoji: '🪶', price: 150 },
+    { id: 'hat-cloud', name: '톡신 구름 모자', area: 'character', slot: 'hat', emoji: '☁️', price: 90 },
+    { id: 'face-rainbow', name: '무지개 페인팅', area: 'character', slot: 'face', emoji: '🌈', price: 120 },
+    { id: 'room-cloud-bed', name: '구름 침대', area: 'room', slot: 'rug', emoji: '🛏️', price: 140 },
+    { id: 'back-sky-bag', name: '하늘빛 가방', area: 'character', slot: 'back', emoji: '🎒', price: 160 },
+    { id: 'yard-swing', name: '구름 그네', area: 'yard', slot: 'swing', art: 'swing', emoji: '🎠', price: 180 },
+    { id: 'outfit-cloud-wings', name: '구름 날개 의상', area: 'character', slot: 'outfit', emoji: '🪶', price: 210 },
   ],
   'space-library': [
-    { id: 'face-robot-badge', name: '로봇 배지', area: 'character', slot: 'face', emoji: '🤖', price: 80 },
-    { id: 'room-planet-lamp', name: '행성 조명', area: 'room', slot: 'lamp', emoji: '🪐', price: 100 },
-    { id: 'room-moon-rug', name: '반달 러그', area: 'room', slot: 'rug', emoji: '🌙', price: 120 },
-    { id: 'yard-rocket-garden', name: '로켓 정원', area: 'yard', slot: 'tree', emoji: '🚀', price: 140 },
-    { id: 'hat-space-helmet', name: '은하수 헬멧', area: 'character', slot: 'hat', emoji: '👨‍🚀', price: 150 },
-    { id: 'outfit-space-silver', name: '은빛 우주 탐험가', area: 'character', slot: 'outfit', emoji: '🚀', price: 170 },
+    { id: 'face-robot-badge', name: '로봇 배지', area: 'character', slot: 'face', emoji: '🤖', price: 100 },
+    { id: 'room-planet-lamp', name: '행성 조명', area: 'room', slot: 'lamp', emoji: '🪐', price: 120 },
+    { id: 'room-moon-rug', name: '반달 러그', area: 'room', slot: 'rug', emoji: '🌙', price: 150 },
+    { id: 'yard-rocket-garden', name: '로켓 정원', area: 'yard', slot: 'tree', emoji: '🚀', price: 170 },
+    { id: 'hat-space-helmet', name: '은하수 헬멧', area: 'character', slot: 'hat', emoji: '👨‍🚀', price: 190 },
+    { id: 'outfit-space-silver', name: '은빛 우주 탐험가', area: 'character', slot: 'outfit', emoji: '🚀', price: 220 },
   ],
   'dino-booktown': [
-    { id: 'face-dino-explorer', name: '화석 탐험 안경', area: 'character', slot: 'face', emoji: '🔎', price: 80 },
-    { id: 'hat-fossil', name: '화석 모자', area: 'character', slot: 'hat', emoji: '🦴', price: 100 },
-    { id: 'room-fossil-display', name: '화석 전시대', area: 'room', slot: 'shelf', emoji: '🦴', price: 120 },
-    { id: 'yard-dino-tree', name: '시대를 넘은 나무', area: 'yard', slot: 'tree', emoji: '🌴', price: 140 },
-    { id: 'outfit-dino', name: '꼬마 공룡 의상', area: 'character', slot: 'outfit', emoji: '🦖', price: 160 },
-    { id: 'yard-dino-friend', name: '아기 공룡 친구', area: 'yard', slot: 'swing', emoji: '🦕', price: 200 },
+    { id: 'face-dino-explorer', name: '화석 탐험 안경', area: 'character', slot: 'face', emoji: '🔎', price: 100 },
+    { id: 'hat-fossil', name: '화석 모자', area: 'character', slot: 'hat', emoji: '🦴', price: 120 },
+    { id: 'room-fossil-display', name: '화석 전시대', area: 'room', slot: 'shelf', emoji: '🦴', price: 150 },
+    { id: 'yard-dino-tree', name: '시대를 넘은 나무', area: 'yard', slot: 'tree', emoji: '🌴', price: 170 },
+    { id: 'outfit-dino', name: '꼬마 공룡 의상', area: 'character', slot: 'outfit', emoji: '🦖', price: 190 },
+    { id: 'yard-dino-friend', name: '아기 공룡 친구', area: 'yard', slot: 'swing', emoji: '🦕', price: 220 },
   ],
   'snow-kingdom': [
-    { id: 'room-snow-rug', name: '눈결정 러그', area: 'room', slot: 'rug', emoji: '❄️', price: 80 },
-    { id: 'back-snow-scarf', name: '포근한 눈꽃 목도리', area: 'character', slot: 'back', emoji: '🧣', price: 100 },
-    { id: 'room-ice-lantern', name: '얼음 랜턴', area: 'room', slot: 'lamp', emoji: '🏮', price: 120 },
-    { id: 'yard-snowman', name: '책 읽는 눈사람', area: 'yard', slot: 'tree', emoji: '☃️', price: 140 },
-    { id: 'outfit-snow-princess', name: '눈꽃 공주 의상', area: 'character', slot: 'outfit', emoji: '👗', price: 180 },
-    { id: 'hat-ice-crown', name: '얼음 왕관', area: 'character', slot: 'hat', emoji: '👑', price: 200 },
+    { id: 'room-snow-rug', name: '눈결정 러그', area: 'room', slot: 'rug', emoji: '❄️', price: 100 },
+    { id: 'back-snow-scarf', name: '포근한 눈꽃 목도리', area: 'character', slot: 'back', emoji: '🧣', price: 130 },
+    { id: 'room-ice-lantern', name: '얼음 랜턴', area: 'room', slot: 'lamp', emoji: '🏮', price: 150 },
+    { id: 'yard-snowman', name: '책 읽는 눈사람', area: 'yard', slot: 'tree', emoji: '☃️', price: 180 },
+    { id: 'outfit-snow-princess', name: '눈꽃 공주 의상', area: 'character', slot: 'outfit', emoji: '👗', price: 200 },
+    { id: 'hat-ice-crown', name: '얼음 왕관', area: 'character', slot: 'hat', emoji: '👑', price: 240 },
   ],
   'dragon-kingdom': [
-    { id: 'face-knight-medal', name: '용기의 훈장', area: 'character', slot: 'face', emoji: '🏅', price: 70 },
-    { id: 'yard-dragon-tower', name: '용의 망반', area: 'yard', slot: 'tree', emoji: '🗼️', price: 90 },
-    { id: 'room-dragon-egg', name: '반짝이는 용의 알', area: 'room', slot: 'lamp', emoji: '🥚', price: 110 },
-    { id: 'hat-dragon-helmet', name: '용기사 투구', area: 'character', slot: 'hat', emoji: '🪖', price: 140 },
-    { id: 'outfit-dragon-knight', name: '용기사 의상', area: 'character', slot: 'outfit', emoji: '⚔️', price: 200 },
+    { id: 'face-knight-medal', name: '용기의 훈장', area: 'character', slot: 'face', emoji: '🏅', price: 100 },
+    { id: 'yard-dragon-tower', name: '용의 망반', area: 'yard', slot: 'tree', emoji: '🗼️', price: 130 },
+    { id: 'room-dragon-egg', name: '반짝이는 용의 알', area: 'room', slot: 'lamp', emoji: '🥚', price: 160 },
+    { id: 'hat-dragon-helmet', name: '용기사 투구', area: 'character', slot: 'hat', emoji: '🪖', price: 190 },
+    { id: 'outfit-dragon-knight', name: '용기사 의상', area: 'character', slot: 'outfit', emoji: '⚔️', price: 220 },
     { id: 'yard-baby-dragon', name: '아기 용 친구', area: 'yard', slot: 'swing', emoji: '🐉', price: 250 },
   ],
   'golden-library': [
-    { id: 'face-golden-star', name: '황금별 페인팅', area: 'character', slot: 'face', emoji: '⭐', price: 70 },
-    { id: 'room-golden-shelf', name: '황금 책장', area: 'room', slot: 'shelf', emoji: '📚', price: 90 },
-    { id: 'yard-golden-fountain', name: '황금별 분수', area: 'yard', slot: 'flowers', emoji: '⛲', price: 110 },
-    { id: 'room-golden-throne', name: '천권의 왕좌', area: 'room', slot: 'rug', emoji: '🪑', price: 140 },
-    { id: 'outfit-legend-reader', name: '전설의 독서왕', area: 'character', slot: 'outfit', emoji: '🧙', price: 170 },
-    { id: 'hat-crown', name: '황금 왕관', area: 'character', slot: 'hat', art: 'crown', emoji: '👑', price: 300 },
+    { id: 'face-golden-star', name: '황금별 페인팅', area: 'character', slot: 'face', emoji: '⭐', price: 110 },
+    { id: 'room-golden-shelf', name: '황금 책장', area: 'room', slot: 'shelf', emoji: '📚', price: 140 },
+    { id: 'yard-golden-fountain', name: '황금별 분수', area: 'yard', slot: 'flowers', emoji: '⛲', price: 170 },
+    { id: 'room-golden-throne', name: '천권의 왕좌', area: 'room', slot: 'rug', emoji: '🪑', price: 200 },
+    { id: 'outfit-legend-reader', name: '전설의 독서왕', area: 'character', slot: 'outfit', emoji: '🧙', price: 250 },
+    { id: 'hat-crown', name: '황금 왕관', area: 'character', slot: 'hat', art: 'crown', emoji: '👑', price: 330 },
   ],
 };
+
+export const SHOP_ITEM_UNLOCK_OFFSETS = [0, 15, 30, 50, 70, 90] as const;
 
 const WORLD_READING_REWARDS: Record<string, ReadingRewardDefinition[]> = {
   'cozy-room': [
@@ -242,11 +244,12 @@ const WORLD_DISCOVERY_REWARDS: Record<string, ReadingRewardDefinition[]> = {
 
 function buildWorldItems(): GameItem[] {
   return READING_WORLDS.flatMap((world) => {
-    const shopItems = WORLD_SHOP_ITEMS[world.id].map<GameItem>((item) => ({
+    const shopItems = WORLD_SHOP_ITEMS[world.id].map<GameItem>((item, index) => ({
       ...item,
       source: 'shop',
       worldId: world.id,
       currency: 'bookStars',
+      unlockAt: world.unlockAt + SHOP_ITEM_UNLOCK_OFFSETS[index],
     }));
 
     const milestoneOffsets = [25, 50, 75];
@@ -332,8 +335,8 @@ export function getItemWorld(item: GameItem) {
 }
 
 export function getItemRequiredBooks(item: GameItem) {
-  if (item.source === 'milestone' || item.source === 'legendary') {
-    return item.unlockAt ?? 0;
+  if (item.unlockAt !== undefined) {
+    return item.unlockAt;
   }
   return getItemWorld(item).unlockAt;
 }

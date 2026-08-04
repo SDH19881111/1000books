@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { motion, type PanInfo } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import {
   BOOK_STARS_PER_BOOK,
@@ -15,11 +15,18 @@ import {
   GAME_ITEMS,
   GameItem,
   SHOP_ITEM_COUNT,
+  getGameItem,
   getItemRequiredBooks,
   getItemWorld,
 } from '@/lib/gameCatalog';
 import { useBookStore } from '@/store/useBookStore';
-import { PurchaseResult, useGameStore } from '@/store/useGameStore';
+import {
+  DEFAULT_ITEM_TRANSFORM,
+  MAX_ITEM_SCALE,
+  MIN_ITEM_SCALE,
+  useGameStore,
+} from '@/store/useGameStore';
+import type { ItemTransform, PurchaseResult } from '@/store/useGameStore';
 
 type WorldView = 'room' | 'yard' | 'rabbit';
 type ItemFilter = 'owned' | 'shop';
@@ -84,6 +91,24 @@ interface SpriteProps {
   label?: string;
 }
 
+interface SceneSize {
+  width: number;
+  height: number;
+}
+
+interface AdjustableSpriteProps {
+  itemId: string;
+  art?: string;
+  className: string;
+  editMode: boolean;
+  selected: boolean;
+  sceneRef: RefObject<HTMLElement | null>;
+  sceneSize: SceneSize;
+  transform: ItemTransform;
+  onSelect: (itemId: string) => void;
+  onTransformChange: (itemId: string, transform: ItemTransform) => void;
+}
+
 function Sprite({ art, className = '', label }: SpriteProps) {
   const sprite = art ? SPRITES[art] : undefined;
   if (!sprite) {
@@ -105,7 +130,59 @@ function Sprite({ art, className = '', label }: SpriteProps) {
   );
 }
 
-function itemStatusLabel(item: GameItem) {
+function AdjustableSprite({
+  itemId,
+  art,
+  className,
+  editMode,
+  selected,
+  sceneRef,
+  sceneSize,
+  transform,
+  onSelect,
+  onTransformChange,
+}: AdjustableSpriteProps) {
+  const item = getGameItem(itemId);
+  const label = item?.name ?? '꾸미기 아이템';
+
+  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (sceneSize.width <= 1 || sceneSize.height <= 1) return;
+    onTransformChange(itemId, {
+      x: transform.x + info.offset.x / sceneSize.width,
+      y: transform.y + info.offset.y / sceneSize.height,
+      scale: transform.scale,
+    });
+  };
+
+  return (
+    <motion.button
+      type="button"
+      data-layout-item={itemId}
+      aria-label={`${label} 위치 조정`}
+      aria-pressed={editMode ? selected : undefined}
+      disabled={!editMode}
+      drag={editMode}
+      dragConstraints={sceneRef}
+      dragElastic={0}
+      dragMomentum={false}
+      onClick={() => onSelect(itemId)}
+      onDragStart={() => onSelect(itemId)}
+      onDragEnd={handleDragEnd}
+      className={`game-editable-item ${selected ? 'game-editable-selected' : ''} ${className}`}
+      style={{
+        x: transform.x * sceneSize.width,
+        y: transform.y * sceneSize.height,
+        scale: transform.scale,
+      }}
+    >
+      <Sprite art={art} label={label} className="game-adjustable-sprite" />
+    </motion.button>
+  );
+}
+
+function itemStatusLabel(item: GameItem, readCount: number) {
+  const requiredBooks = getItemRequiredBooks(item);
+  if (readCount < requiredBooks) return `🔒 ${requiredBooks}권에 열림`;
   if (item.source === 'discovery') return '🎁 행운 발견';
   if (item.source === 'legendary') return `🏆 ${item.unlockAt}권 세계 완성`;
   if (item.source === 'milestone') return `📚 ${item.unlockAt}권 독서 보상`;
@@ -134,6 +211,10 @@ export default function WorldPage() {
   const [filter, setFilter] = useState<ItemFilter>('owned');
   const [selectedWorldId, setSelectedWorldId] = useState(currentWorld.id);
   const [message, setMessage] = useState(`책 한 권을 읽으면 ${BOOK_STARS_PER_BOOK}책별을 얻어요!`);
+  const [layoutEditMode, setLayoutEditMode] = useState(false);
+  const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<string | null>(null);
+  const [sceneSize, setSceneSize] = useState<SceneSize>({ width: 1, height: 1 });
+  const sceneRef = useRef<HTMLElement>(null);
 
   const bookStars = useGameStore((state) => state.bookStars);
   const bookStarDebt = useGameStore((state) => state.bookStarDebt);
@@ -143,10 +224,30 @@ export default function WorldPage() {
   const ownedItemIds = useGameStore((state) => state.ownedItemIds);
   const equippedBearItems = useGameStore((state) => state.equippedBearItems);
   const equippedRabbitItems = useGameStore((state) => state.equippedRabbitItems);
+  const itemTransforms = useGameStore((state) => state.itemTransforms);
   const purchaseItem = useGameStore((state) => state.purchaseItem);
   const toggleEquippedItem = useGameStore((state) => state.toggleEquippedItem);
+  const setItemTransform = useGameStore((state) => state.setItemTransform);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const updateSceneSize = () => {
+      const bounds = scene.getBoundingClientRect();
+      setSceneSize({ width: bounds.width, height: bounds.height });
+    };
+
+    updateSceneSize();
+    const observer = new ResizeObserver(updateSceneSize);
+    observer.observe(scene);
+    return () => observer.disconnect();
+  }, []);
 
   const selectedWorld = getReadingWorld(selectedWorldId) ?? currentWorld;
+  const selectedLayoutItem = selectedLayoutItemId
+    ? getGameItem(selectedLayoutItemId)
+    : undefined;
   const proseCount = Object.values(ledger).filter((record) => record.proseCreditedAt).length;
   const englishCount = Object.values(ledger).filter((record) => record.englishCreditedAt).length;
 
@@ -186,6 +287,36 @@ export default function WorldPage() {
       (item.area === 'character' || item.area === view)
   );
 
+  const getSavedTransform = (itemId: string) =>
+    itemTransforms[itemId] ?? DEFAULT_ITEM_TRANSFORM;
+
+  const handleViewChange = (nextView: WorldView) => {
+    setView(nextView);
+    setSelectedLayoutItemId(null);
+  };
+
+  const handleLayoutEditToggle = () => {
+    const nextEditing = !layoutEditMode;
+    setLayoutEditMode(nextEditing);
+    if (!nextEditing) setSelectedLayoutItemId(null);
+    setMessage(nextEditing
+      ? '배치할 아이템을 누르고 끌어보세요. 위치와 크기는 자동 저장돼요.'
+      : '아이템 배치를 저장했어요.');
+  };
+
+  const adjustSelectedItemScale = (amount: number) => {
+    if (!selectedLayoutItemId) return;
+    const transform = getSavedTransform(selectedLayoutItemId);
+    const scale = Math.min(MAX_ITEM_SCALE, Math.max(MIN_ITEM_SCALE, transform.scale + amount));
+    setItemTransform(selectedLayoutItemId, { ...transform, scale });
+  };
+
+  const resetSelectedItemTransform = () => {
+    if (!selectedLayoutItemId) return;
+    setItemTransform(selectedLayoutItemId, { ...DEFAULT_ITEM_TRANSFORM });
+    setMessage(`${selectedLayoutItem?.name ?? '아이템'} 위치를 처음 상태로 돌렸어요.`);
+  };
+
   const handleWorld = (worldId: string) => {
     const world = getReadingWorld(worldId);
     if (!world) return;
@@ -194,6 +325,7 @@ export default function WorldPage() {
       return;
     }
     setSelectedWorldId(world.id);
+    setSelectedLayoutItemId(null);
     setMessage(`${world.emoji} ${world.name} 아이템을 보고 있어요.`);
   };
 
@@ -227,6 +359,7 @@ export default function WorldPage() {
     }
 
     toggleEquippedItem(item.id);
+    if (selectedLayoutItemId === item.id) setSelectedLayoutItemId(null);
     const isEquipped = item.area === 'rabbit'
       ? equippedRabbitItems.includes(item.id)
       : equippedBearItems.includes(item.id);
@@ -235,6 +368,22 @@ export default function WorldPage() {
 
   const hasSceneItem = (itemId: string) =>
     ownedItemIds.includes(itemId) && equippedBearItems.includes(itemId);
+
+  const renderAdjustableSprite = (itemId: string, art: string | undefined, className: string) => (
+    <AdjustableSprite
+      key={itemId}
+      itemId={itemId}
+      art={art}
+      className={className}
+      editMode={layoutEditMode}
+      selected={selectedLayoutItemId === itemId}
+      sceneRef={sceneRef}
+      sceneSize={sceneSize}
+      transform={getSavedTransform(itemId)}
+      onSelect={setSelectedLayoutItemId}
+      onTransformChange={setItemTransform}
+    />
+  );
 
   return (
     <div className="min-h-screen pb-28">
@@ -332,7 +481,7 @@ export default function WorldPage() {
             <button
               key={value}
               type="button"
-              onClick={() => setView(value)}
+              onClick={() => handleViewChange(value)}
               className={`rounded-xl py-2 text-xs font-black transition-colors ${
                 view === value ? 'bg-white text-purple-700 shadow-sm' : 'text-purple-400'
               }`}
@@ -342,29 +491,87 @@ export default function WorldPage() {
           ))}
         </div>
 
+        <section className={`game-layout-editor ${layoutEditMode ? 'game-layout-editor-active' : ''}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <strong className="text-xs text-purple-700">아이템 위치 조정</strong>
+              <p className="mt-0.5 text-[10px] text-purple-400">
+                {layoutEditMode ? '아이템을 선택하고 끌어서 배치해요.' : '배치 편집을 켜면 위치와 크기를 바꿀 수 있어요.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleLayoutEditToggle}
+              className="whitespace-nowrap rounded-xl bg-purple-600 px-3 py-2 text-[11px] font-black text-white shadow-sm"
+            >
+              {layoutEditMode ? '편집 완료' : '배치 편집'}
+            </button>
+          </div>
+
+          {layoutEditMode && (
+            <div className="mt-2 flex min-h-10 items-center justify-between gap-2 rounded-xl bg-white/85 px-2 py-1.5">
+              {selectedLayoutItem ? (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-gray-600">
+                    {selectedLayoutItem.name} · {Math.round(getSavedTransform(selectedLayoutItem.id).scale * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="아이템 작게"
+                    onClick={() => adjustSelectedItemScale(-0.1)}
+                    disabled={getSavedTransform(selectedLayoutItem.id).scale <= MIN_ITEM_SCALE}
+                    className="game-layout-control"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="아이템 크게"
+                    onClick={() => adjustSelectedItemScale(0.1)}
+                    disabled={getSavedTransform(selectedLayoutItem.id).scale >= MAX_ITEM_SCALE}
+                    className="game-layout-control"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetSelectedItemTransform}
+                    className="rounded-lg bg-purple-50 px-2 py-1.5 text-[10px] font-black text-purple-600"
+                  >
+                    원래 위치
+                  </button>
+                </>
+              ) : (
+                <p className="w-full text-center text-[10px] font-bold text-purple-400">
+                  장면에 놓인 아이템을 먼저 선택해주세요.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
         <section
+          ref={sceneRef}
           aria-label={view === 'yard' ? '곰돌이의 마당' : view === 'rabbit' ? '곰돌이와 토끼 친구' : '곰돌이의 방'}
-          className={`game-world-scene ${view === 'yard' ? 'game-world-yard' : 'game-world-room'}`}
+          className={`game-world-scene ${view === 'yard' ? 'game-world-yard' : 'game-world-room'} ${layoutEditMode ? 'game-world-editing' : ''}`}
         >
           <div className="game-world-sparkles" aria-hidden>✦　·　✧</div>
           {view !== 'yard' && <div className="game-world-window" aria-hidden />}
           {view === 'yard' && <div className="game-world-cloud" aria-hidden />}
 
-          {view === 'room' && hasSceneItem('room-rug') && <Sprite art="rug" className="game-scene-rug" />}
-          {view === 'room' && hasSceneItem('room-shelf') && <Sprite art="shelf" className="game-scene-shelf" />}
-          {view === 'yard' && hasSceneItem('yard-tree') && <Sprite art="tree" className="game-scene-tree" />}
-          {view === 'yard' && hasSceneItem('yard-flowers') && <Sprite art="flowers" className="game-scene-flowers" />}
-          {view === 'yard' && (hasSceneItem('yard-swing') || hasSceneItem('yard-swing-reward')) && (
-            <Sprite art="swing" className="game-scene-swing" />
-          )}
+          {view === 'room' && hasSceneItem('room-rug') && renderAdjustableSprite('room-rug', 'rug', 'game-scene-rug')}
+          {view === 'room' && hasSceneItem('room-shelf') && renderAdjustableSprite('room-shelf', 'shelf', 'game-scene-shelf')}
+          {view === 'yard' && hasSceneItem('yard-tree') && renderAdjustableSprite('yard-tree', 'tree', 'game-scene-tree')}
+          {view === 'yard' && hasSceneItem('yard-flowers') && renderAdjustableSprite('yard-flowers', 'flowers', 'game-scene-flowers')}
+          {view === 'yard' && hasSceneItem('yard-swing') && renderAdjustableSprite('yard-swing', 'swing', 'game-scene-swing')}
+          {view === 'yard' && hasSceneItem('yard-swing-reward') && renderAdjustableSprite('yard-swing-reward', 'swing', 'game-scene-swing')}
 
           {genericEquippedItems.map((item) => (
-            <Sprite
-              key={item.id}
-              art={item.iconArt}
-              label={item.name}
-              className={`game-generic-item game-generic-${item.area} game-generic-${item.slot}`}
-            />
+            renderAdjustableSprite(
+              item.id,
+              item.iconArt,
+              `game-generic-item game-generic-${item.area} game-generic-${item.slot}`
+            )
           ))}
 
           <motion.div
@@ -372,10 +579,10 @@ export default function WorldPage() {
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             className={`game-bear-wrap ${view === 'rabbit' ? 'game-bear-with-rabbit' : ''}`}
           >
-            {equippedBearItems.includes('backpack-mint') && <Sprite art="backpack" className="game-bear-backpack" />}
+            {equippedBearItems.includes('backpack-mint') && renderAdjustableSprite('backpack-mint', 'backpack', 'game-bear-backpack')}
             <Sprite art={outfit.art} className="game-bear" label={outfit.name} />
-            {equippedBearItems.includes('hat-crown') && <Sprite art="crown" className="game-bear-crown" />}
-            {equippedBearItems.includes('face-glasses') && <Sprite art="glasses" className="game-bear-glasses" />}
+            {equippedBearItems.includes('hat-crown') && renderAdjustableSprite('hat-crown', 'crown', 'game-bear-crown')}
+            {equippedBearItems.includes('face-glasses') && renderAdjustableSprite('face-glasses', 'glasses', 'game-bear-glasses')}
           </motion.div>
 
           <motion.div
@@ -385,12 +592,14 @@ export default function WorldPage() {
           >
             {rabbitAdopted ? (
               <>
-                {equippedRabbitItems.includes('rabbit-backpack') && <Sprite art="rabbit-backpack" className="game-rabbit-layer game-rabbit-back" />}
+                {equippedRabbitItems.includes('rabbit-backpack') && renderAdjustableSprite('rabbit-backpack', 'rabbit-backpack', 'game-rabbit-layer game-rabbit-back')}
                 <Sprite art="rabbit-base" className="game-rabbit-base" label="곰돌이의 작은 토끼 친구" />
                 {equippedRabbitItems.map((itemId) => {
                   if (itemId === 'rabbit-backpack') return null;
                   const item = GAME_ITEMS.find((candidate) => candidate.id === itemId);
-                  return item?.art ? <Sprite key={item.id} art={item.art} className="game-rabbit-layer" /> : null;
+                  return item?.art
+                    ? renderAdjustableSprite(item.id, item.art, 'game-rabbit-layer')
+                    : null;
                 })}
               </>
             ) : (
@@ -441,9 +650,7 @@ export default function WorldPage() {
                   ? equippedRabbitItems.includes(item.id)
                   : equippedBearItems.includes(item.id);
                 const itemWorld = getItemWorld(item);
-                const rewardLocked = !owned &&
-                  (item.source === 'milestone' || item.source === 'legendary') &&
-                  readCount < (item.unlockAt ?? 0);
+                const itemLocked = !owned && readCount < getItemRequiredBooks(item);
                 return (
                   <motion.button
                     key={item.id}
@@ -456,13 +663,13 @@ export default function WorldPage() {
                         : 'border-gray-100 bg-white/80 hover:bg-pink-50'
                     }`}
                   >
-                    {rewardLocked && <span className="absolute right-2 top-2 text-xs">🔒</span>}
+                    {itemLocked && <span className="absolute right-2 top-2 text-xs">🔒</span>}
                     <Sprite art={item.iconArt ?? item.art} label={item.name} className="game-item-icon" />
                     <span className="min-w-0 flex-1">
                       <strong className="block text-xs text-gray-700">{item.name}</strong>
                       <span className="mt-0.5 block text-[9px] text-gray-400">{itemWorld.emoji} {itemWorld.name}</span>
                       <span className="mt-1 block text-[10px] font-bold text-purple-500">
-                        {equipped ? '✓ 사용 중' : owned ? '사용하기' : itemStatusLabel(item)}
+                        {equipped ? '✓ 사용 중' : owned ? '사용하기' : itemStatusLabel(item, readCount)}
                       </span>
                     </span>
                   </motion.button>

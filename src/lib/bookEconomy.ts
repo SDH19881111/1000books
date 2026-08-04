@@ -23,7 +23,7 @@ export const TOTAL_MILESTONE_BOOK_STARS = Object.values(BOOK_STAR_MILESTONE_REWA
   .reduce((total, reward) => total + reward, 0);
 export const TOTAL_GUARANTEED_BOOK_STARS =
   TOTAL_BASE_BOOK_STARS + TOTAL_MILESTONE_BOOK_STARS;
-export const SHOP_BOOK_STAR_BUDGET = 7000;
+export const SHOP_BOOK_STAR_BUDGET = 9250;
 
 export interface ReadingWorld {
   id: string;
