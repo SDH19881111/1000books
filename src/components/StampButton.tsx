@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BOOK_STARS_PER_BOOK } from '@/lib/bookEconomy';
 import { useBookStore } from '@/store/useBookStore';
 import ConfettiEffect from './ConfettiEffect';
 
@@ -99,7 +100,10 @@ export default function StampButton({ bookId, isRead, onMilestone }: StampButton
             transition={{ type: 'spring', stiffness: 300 }}
             className="absolute z-50 whitespace-nowrap bg-white rounded-2xl px-3 py-1.5 text-sm font-bold text-pink-600 shadow-lg shadow-pink-100 border border-pink-200"
           >
-            {lastPraiseMessage}
+            <span className="block">{lastPraiseMessage}</span>
+            <span className="block text-center text-xs text-amber-500">
+              ★ +{BOOK_STARS_PER_BOOK}책별
+            </span>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { BOOK_STAR_MILESTONES } from '@/lib/bookEconomy';
 
 export interface Book {
   id: string;
   title: string;
   author: string;
   coverUrl?: string;
+  isProse: boolean;
+  isEnglish: boolean;
   status: 'unread' | 'read';
   stampedAt?: string;
   addedAt: string;
@@ -19,8 +22,9 @@ export interface Reward {
   unlockedAt: string;
 }
 
-export const MILESTONES = [10, 30, 50, 100, 200, 300, 500, 1000];
+export const MILESTONES = BOOK_STAR_MILESTONES;
 export const BOOK_STORAGE_KEY = '1000books-storage';
+export const BOOK_STORAGE_VERSION = 2;
 
 export const MILESTONE_REWARDS: Record<number, { title: string; emoji: string; description: string }> = {
   10:   { title: '마법 요정',     emoji: '🧚',  description: '10권을 읽은 당신은 마법 요정이에요!' },
@@ -61,6 +65,22 @@ interface BookStore {
   updateBook: (id: string, updates: Partial<Book>) => void;
 }
 
+export function migratePersistedBookState(persistedState: unknown) {
+  const state = persistedState as Partial<BookStore>;
+  const books = Array.isArray(state.books)
+    ? state.books.map((book) => ({
+        ...book,
+        isProse: book.isProse ?? false,
+        isEnglish: book.isEnglish ?? false,
+      }))
+    : [];
+
+  return {
+    ...state,
+    books,
+  } as BookStore;
+}
+
 export const useBookStore = create<BookStore>()(
   persist(
     (set, get) => ({
@@ -85,6 +105,12 @@ export const useBookStore = create<BookStore>()(
 
       stampBook: (id) => {
         const state = get();
+        const targetBook = state.books.find((book) => book.id === id);
+
+        if (!targetBook || targetBook.status === 'read') {
+          return { isNewMilestone: false };
+        }
+
         const prevReadCount = state.books.filter((b) => b.status === 'read').length;
         const praiseIdx = Math.floor(Math.random() * PRAISE_MESSAGES.length);
 
@@ -99,7 +125,9 @@ export const useBookStore = create<BookStore>()(
         }));
 
         const newReadCount = prevReadCount + 1;
-        const isNewMilestone = MILESTONES.includes(newReadCount);
+        const isMilestone = MILESTONES.includes(newReadCount);
+        const isNewMilestone = isMilestone &&
+          !state.rewards.some((reward) => reward.milestone === newReadCount);
 
         if (isNewMilestone) {
           const rewardInfo = MILESTONE_REWARDS[newReadCount];
@@ -125,11 +153,9 @@ export const useBookStore = create<BookStore>()(
           const newBooks = s.books.map((b) =>
             b.id === id ? { ...b, status: 'unread' as const, stampedAt: undefined } : b
           );
-          const newReadCount = newBooks.filter((b) => b.status === 'read').length;
           return {
             books: newBooks,
             pendingUndo: null,
-            rewards: s.rewards.filter((r) => r.milestone <= newReadCount),
           };
         });
       },
@@ -154,6 +180,10 @@ export const useBookStore = create<BookStore>()(
         return MILESTONES.filter((m) => m <= readCount);
       },
     }),
-    { name: BOOK_STORAGE_KEY }
+    {
+      name: BOOK_STORAGE_KEY,
+      version: BOOK_STORAGE_VERSION,
+      migrate: migratePersistedBookState,
+    }
   )
 );

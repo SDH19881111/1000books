@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useBookStore } from '@/store/useBookStore';
+import { Book, useBookStore } from '@/store/useBookStore';
 import Navbar from '@/components/Navbar';
 import BookCard from '@/components/BookCard';
 import BookSearch from '@/components/BookSearch';
 import MilestoneModal from '@/components/MilestoneModal';
+import BookEditModal from '@/components/BookEditModal';
 
 type Tab = 'unread' | 'read';
 
@@ -14,9 +15,11 @@ export default function BooksPage() {
   const [tab, setTab] = useState<Tab>('unread');
   const [showSearch, setShowSearch] = useState(false);
   const [activeMilestone, setActiveMilestone] = useState<number | null>(null);
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
 
   const books = useBookStore((s) => s.books);
   const removeBook = useBookStore((s) => s.removeBook);
+  const updateBook = useBookStore((s) => s.updateBook);
 
   const unreadBooks = books.filter((b) => b.status === 'unread');
   const readBooks = books.filter((b) => b.status === 'read');
@@ -93,6 +96,7 @@ export default function BooksPage() {
                 book={book}
                 onMilestone={(m) => setActiveMilestone(m)}
                 onRemove={removeBook}
+                onEdit={setEditingBook}
               />
             ))
           )}
@@ -143,6 +147,15 @@ export default function BooksPage() {
       <MilestoneModal
         milestone={activeMilestone}
         onClose={() => setActiveMilestone(null)}
+      />
+      <BookEditModal
+        book={editingBook}
+        onClose={() => setEditingBook(null)}
+        onSave={(updates) => {
+          if (!editingBook) return;
+          updateBook(editingBook.id, updates);
+          setEditingBook(null);
+        }}
       />
       <Navbar />
     </div>
