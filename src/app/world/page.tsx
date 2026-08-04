@@ -24,7 +24,14 @@ import { PurchaseResult, useGameStore } from '@/store/useGameStore';
 type WorldView = 'room' | 'yard' | 'rabbit';
 type ItemFilter = 'owned' | 'shop';
 
-const SPRITES: Record<string, { sheet: 'bear' | 'item' | 'rabbit'; position: string }> = {
+interface SpriteDefinition {
+  sheet: 'bear' | 'item' | 'rabbit' | 'world';
+  position: string;
+  backgroundImage?: string;
+  backgroundSize?: string;
+}
+
+const BASE_SPRITES: Record<string, SpriteDefinition> = {
   'outfit-basic': { sheet: 'bear', position: '0% 50%' },
   'outfit-wizard': { sheet: 'bear', position: '50% 50%' },
   'outfit-space': { sheet: 'bear', position: '100% 50%' },
@@ -47,17 +54,40 @@ const SPRITES: Record<string, { sheet: 'bear' | 'item' | 'rabbit'; position: str
   'rabbit-book': { sheet: 'rabbit', position: '100% 100%' },
 };
 
+const WORLD_SPRITES = Object.fromEntries(
+  READING_WORLDS.flatMap((world) =>
+    Array.from({ length: 12 }, (_, index) => {
+      const column = index % 4;
+      const row = Math.floor(index / 4);
+
+      return [
+        `world-${world.id}-${index}`,
+        {
+          sheet: 'world',
+          position: `${(column / 3) * 100}% ${(row / 3) * 100}%`,
+          backgroundImage: `url('/game/world-${world.id}-sprites.png')`,
+          backgroundSize: '400% 400%',
+        } satisfies SpriteDefinition,
+      ];
+    })
+  )
+) as Record<string, SpriteDefinition>;
+
+const SPRITES: Record<string, SpriteDefinition> = {
+  ...BASE_SPRITES,
+  ...WORLD_SPRITES,
+};
+
 interface SpriteProps {
   art?: string;
   className?: string;
   label?: string;
-  fallback?: string;
 }
 
-function Sprite({ art, className = '', label, fallback = '✨' }: SpriteProps) {
+function Sprite({ art, className = '', label }: SpriteProps) {
   const sprite = art ? SPRITES[art] : undefined;
   if (!sprite) {
-    return <span className={`game-emoji-preview ${className}`}>{fallback}</span>;
+    return <span className={`game-item-placeholder ${className}`} aria-hidden />;
   }
 
   return (
@@ -66,7 +96,11 @@ function Sprite({ art, className = '', label, fallback = '✨' }: SpriteProps) {
       aria-label={label}
       aria-hidden={label ? undefined : true}
       className={`game-sprite game-sprite-${sprite.sheet} ${className}`}
-      style={{ backgroundPosition: sprite.position }}
+      style={{
+        backgroundImage: sprite.backgroundImage,
+        backgroundPosition: sprite.position,
+        backgroundSize: sprite.backgroundSize,
+      }}
     />
   );
 }
@@ -147,6 +181,7 @@ export default function WorldPage() {
   const genericEquippedItems = GAME_ITEMS.filter(
     (item) =>
       !item.art &&
+      item.iconArt &&
       equippedBearItems.includes(item.id) &&
       (item.area === 'character' || item.area === view)
   );
@@ -324,14 +359,12 @@ export default function WorldPage() {
           )}
 
           {genericEquippedItems.map((item) => (
-            <span
+            <Sprite
               key={item.id}
-              role="img"
-              aria-label={item.name}
+              art={item.iconArt}
+              label={item.name}
               className={`game-generic-item game-generic-${item.area} game-generic-${item.slot}`}
-            >
-              {item.emoji}
-            </span>
+            />
           ))}
 
           <motion.div
@@ -340,7 +373,7 @@ export default function WorldPage() {
             className={`game-bear-wrap ${view === 'rabbit' ? 'game-bear-with-rabbit' : ''}`}
           >
             {equippedBearItems.includes('backpack-mint') && <Sprite art="backpack" className="game-bear-backpack" />}
-            <Sprite art={outfit.art} className="game-bear" label={outfit.name} fallback={outfit.emoji} />
+            <Sprite art={outfit.art} className="game-bear" label={outfit.name} />
             {equippedBearItems.includes('hat-crown') && <Sprite art="crown" className="game-bear-crown" />}
             {equippedBearItems.includes('face-glasses') && <Sprite art="glasses" className="game-bear-glasses" />}
           </motion.div>
@@ -424,7 +457,7 @@ export default function WorldPage() {
                     }`}
                   >
                     {rewardLocked && <span className="absolute right-2 top-2 text-xs">🔒</span>}
-                    <Sprite art={item.art} fallback={item.source === 'discovery' && !owned ? '❓' : item.emoji} className="game-item-icon" />
+                    <Sprite art={item.iconArt ?? item.art} label={item.name} className="game-item-icon" />
                     <span className="min-w-0 flex-1">
                       <strong className="block text-xs text-gray-700">{item.name}</strong>
                       <span className="mt-0.5 block text-[9px] text-gray-400">{itemWorld.emoji} {itemWorld.name}</span>

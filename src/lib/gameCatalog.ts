@@ -20,6 +20,7 @@ export interface GameItem {
   area: GameArea;
   slot: string;
   art?: string;
+  iconArt?: string;
   emoji: string;
   source: GameItemSource;
   worldId: string;
@@ -269,7 +270,12 @@ function buildWorldItems(): GameItem[] {
       worldId: world.id,
     }));
 
-    return [...shopItems, ...milestoneItems, ...discoveryItems, legendaryItem];
+    const worldItems = [...shopItems, ...milestoneItems, ...discoveryItems, legendaryItem];
+
+    return worldItems.map((item, index) => ({
+      ...item,
+      iconArt: `world-${world.id}-${index}`,
+    }));
   });
 }
 
