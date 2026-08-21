@@ -1,14 +1,17 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { getMilestoneBookStars } from '@/lib/bookEconomy';
+import { getConfiguredMilestoneBookStars } from '@/lib/rewardSettings';
 import { useBookStore, MILESTONES, MILESTONE_REWARDS } from '@/store/useBookStore';
+import { useGameStore } from '@/store/useGameStore';
 import Navbar from '@/components/Navbar';
 
 export default function RewardsPage() {
+  const books = useBookStore((state) => state.books);
   const rewards = useBookStore((s) => s.rewards);
-  const getReadCount = useBookStore((s) => s.getReadCount);
-  const readCount = getReadCount();
+  const rewardSettings = useGameStore((state) => state.rewardSettings);
+  const claimedBookStarRewards = useGameStore((state) => state.claimedBookStarRewards);
+  const readCount = books.filter((book) => book.status === 'read').length;
 
   const unlockedSet = new Set(rewards.map((r) => r.milestone));
 
@@ -77,7 +80,9 @@ export default function RewardsPage() {
                     {milestone}권 달성
                   </p>
                   <p className={`mt-1 text-[11px] font-black ${isUnlocked ? 'text-amber-600' : 'text-gray-400'}`}>
-                    ★ +{getMilestoneBookStars(milestone)}책별
+                ★ +{unlockedSet.has(milestone)
+                  ? claimedBookStarRewards[milestone] ?? getConfiguredMilestoneBookStars(rewardSettings, milestone)
+                  : getConfiguredMilestoneBookStars(rewardSettings, milestone)}책별
                   </p>
                 </div>
 

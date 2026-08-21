@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { motion, type PanInfo } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import {
-  BOOK_STARS_PER_BOOK,
   READING_WORLDS,
   SHOP_BOOK_STAR_BUDGET,
   getCurrentReadingWorld,
@@ -208,13 +207,19 @@ function itemStatusLabel(item: GameItem, readCount: number) {
   return '기본 아이템';
 }
 
-function purchaseFailureMessage(result: PurchaseResult, item: GameItem) {
+function purchaseFailureMessage(
+  result: PurchaseResult,
+  item: GameItem,
+  bookStarsPerBook: number
+) {
   if (result === 'locked') {
     return `🔒 ${getItemRequiredBooks(item)}권을 읽으면 살 수 있어요.`;
   }
   if (result === 'needs-rabbit') return '🐰 먼저 토끼 친구를 만나주세요.';
   if (result === 'insufficient-hearts') return '♥ 하트가 부족해요.';
-  if (result === 'insufficient-book-stars') return '★ 책별이 부족해요. 책 한 권마다 10책별을 얻어요.';
+  if (result === 'insufficient-book-stars') {
+    return `★ 책별이 부족해요. 책 한 권마다 ${bookStarsPerBook}책별을 얻어요.`;
+  }
   return '지금은 얻을 수 없는 아이템이에요.';
 }
 
@@ -227,7 +232,7 @@ export default function WorldPage() {
   const [view, setView] = useState<WorldView>('room');
   const [filter, setFilter] = useState<ItemFilter>('owned');
   const [selectedWorldId, setSelectedWorldId] = useState(currentWorld.id);
-  const [message, setMessage] = useState(`책 한 권을 읽으면 ${BOOK_STARS_PER_BOOK}책별을 얻어요!`);
+  const [message, setMessage] = useState('책을 읽으면 책별을 얻어요!');
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<string | null>(null);
   const [sceneSize, setSceneSize] = useState<SceneSize>({ width: 1, height: 1 });
@@ -236,6 +241,7 @@ export default function WorldPage() {
   const bookStars = useGameStore((state) => state.bookStars);
   const bookStarDebt = useGameStore((state) => state.bookStarDebt);
   const hearts = useGameStore((state) => state.hearts);
+  const bookStarsPerBook = useGameStore((state) => state.rewardSettings.bookStarsPerBook);
   const ledger = useGameStore((state) => state.bookRewardLedger);
   const rabbitAdopted = useGameStore((state) => state.rabbitAdopted);
   const ownedItemIds = useGameStore((state) => state.ownedItemIds);
@@ -245,6 +251,10 @@ export default function WorldPage() {
   const purchaseItem = useGameStore((state) => state.purchaseItem);
   const toggleEquippedItem = useGameStore((state) => state.toggleEquippedItem);
   const setItemTransform = useGameStore((state) => state.setItemTransform);
+
+  useEffect(() => {
+    setMessage(`책 한 권을 읽으면 ${bookStarsPerBook}책별을 얻어요!`);
+  }, [bookStarsPerBook]);
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -365,7 +375,7 @@ export default function WorldPage() {
           ? '🐰 토끼 친구가 가족이 되었어요!'
           : `🎁 ${item.name}을(를) 얻었어요!`);
       } else {
-        setMessage(purchaseFailureMessage(result, item));
+        setMessage(purchaseFailureMessage(result, item, bookStarsPerBook));
       }
       return;
     }
@@ -435,7 +445,7 @@ export default function WorldPage() {
               <h2 className="text-sm font-black text-gray-700">{currentWorld.name}</h2>
             </div>
             <p className="text-right text-[10px] font-bold text-gray-400">
-              1권 = {BOOK_STARS_PER_BOOK}책별<br />
+              1권 = {bookStarsPerBook}책별<br />
               상점 {SHOP_ITEM_COUNT}개 = {SHOP_BOOK_STAR_BUDGET.toLocaleString()}책별
             </p>
           </div>

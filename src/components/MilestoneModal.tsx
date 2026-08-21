@@ -1,8 +1,9 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMilestoneBookStars } from '@/lib/bookEconomy';
+import { getConfiguredMilestoneBookStars } from '@/lib/rewardSettings';
 import { MILESTONE_REWARDS } from '@/store/useBookStore';
+import { useGameStore } from '@/store/useGameStore';
 import ConfettiEffect from './ConfettiEffect';
 
 interface MilestoneModalProps {
@@ -13,7 +14,10 @@ interface MilestoneModalProps {
 export default function MilestoneModal({ milestone, onClose }: MilestoneModalProps) {
   const isOpen = milestone !== null;
   const reward = milestone ? MILESTONE_REWARDS[milestone] : null;
-  const bookStarReward = milestone ? getMilestoneBookStars(milestone) : 0;
+  const rewardSettings = useGameStore((state) => state.rewardSettings);
+  const bookStarReward = milestone
+    ? getConfiguredMilestoneBookStars(rewardSettings, milestone)
+    : 0;
 
   return (
     <AnimatePresence>

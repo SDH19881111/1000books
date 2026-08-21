@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BOOK_STARS_PER_BOOK } from '@/lib/bookEconomy';
 import { useBookStore } from '@/store/useBookStore';
+import { useGameStore } from '@/store/useGameStore';
 import ConfettiEffect from './ConfettiEffect';
 
 interface StampButtonProps {
@@ -21,6 +21,7 @@ export default function StampButton({ bookId, isRead, onMilestone }: StampButton
   const stampBook = useBookStore((s) => s.stampBook);
   const unstampBook = useBookStore((s) => s.unstampBook);
   const lastPraiseMessage = useBookStore((s) => s.lastPraiseMessage);
+  const bookStarsPerBook = useGameStore((s) => s.rewardSettings.bookStarsPerBook);
 
   const handleStamp = useCallback(() => {
     if (isRead) return;
@@ -102,7 +103,7 @@ export default function StampButton({ bookId, isRead, onMilestone }: StampButton
           >
             <span className="block">{lastPraiseMessage}</span>
             <span className="block text-center text-xs text-amber-500">
-              ★ +{BOOK_STARS_PER_BOOK}책별
+              ★ +{bookStarsPerBook}책별
             </span>
           </motion.div>
         )}

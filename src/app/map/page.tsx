@@ -8,8 +8,8 @@ const TOTAL = 1000;
 const COLS = 25;
 
 export default function MapPage() {
-  const getReadCount = useBookStore((s) => s.getReadCount);
-  const readCount = getReadCount();
+  const books = useBookStore((state) => state.books);
+  const readCount = books.filter((book) => book.status === 'read').length;
 
   const milestoneSet = new Set(MILESTONES);
 

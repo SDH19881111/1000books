@@ -184,6 +184,7 @@ export const useBookStore = create<BookStore>()(
       name: BOOK_STORAGE_KEY,
       version: BOOK_STORAGE_VERSION,
       migrate: migratePersistedBookState,
+      skipHydration: true,
     }
   )
 );

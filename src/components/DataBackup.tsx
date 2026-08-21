@@ -3,7 +3,13 @@
 import { ChangeEvent, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { BOOK_STORAGE_KEY, Book, Reward } from '@/store/useBookStore';
-import { GAME_STORAGE_KEY, BookRewardRecord, ItemTransform } from '@/store/useGameStore';
+import {
+  GAME_STORAGE_KEY,
+  BookRewardRecord,
+  CurrencyAdjustment,
+  ItemTransform,
+} from '@/store/useGameStore';
+import { RewardSettings } from '@/lib/rewardSettings';
 
 interface BackupBook extends Omit<Book, 'isProse' | 'isEnglish'> {
   isProse?: boolean;
@@ -29,11 +35,14 @@ interface GameBackupState {
   bookRewardLedger: Record<string, BookRewardRecord>;
   claimedHeartMilestones: string[];
   claimedBookStarMilestones?: number[];
+  claimedBookStarRewards?: Record<number, number>;
   rabbitAdopted: boolean;
   ownedItemIds: string[];
   equippedBearItems: string[];
   equippedRabbitItems: string[];
   itemTransforms: Record<string, ItemTransform>;
+  rewardSettings?: RewardSettings;
+  currencyAdjustments?: CurrencyAdjustment[];
 }
 
 interface GameBackupEnvelope {
@@ -113,9 +122,12 @@ function isBookRewardRecord(value: unknown): value is BookRewardRecord {
   return (
     typeof value.bookRewardedAt === 'string' &&
     (value.bookStarActive === undefined || typeof value.bookStarActive === 'boolean') &&
+    (value.bookStarsGranted === undefined || typeof value.bookStarsGranted === 'number') &&
     (value.bookStarRevokedAt === undefined || typeof value.bookStarRevokedAt === 'string') &&
     (value.proseCreditedAt === undefined || typeof value.proseCreditedAt === 'string') &&
+    (value.proseHeartsGranted === undefined || typeof value.proseHeartsGranted === 'number') &&
     (value.englishCreditedAt === undefined || typeof value.englishCreditedAt === 'string') &&
+    (value.englishHeartsGranted === undefined || typeof value.englishHeartsGranted === 'number') &&
     (value.discoveryRolledAt === undefined || typeof value.discoveryRolledAt === 'string') &&
     (value.discoveredItemId === undefined || typeof value.discoveredItemId === 'string')
   );
@@ -137,6 +149,30 @@ function isRecordOf<T>(
   return isRecord(value) && Object.values(value).every(validator);
 }
 
+function isRewardSettings(value: unknown): value is RewardSettings {
+  if (!isRecord(value) || !isRecord(value.milestoneBookStars)) return false;
+  return (
+    typeof value.bookStarsPerBook === 'number' &&
+    typeof value.proseBooksPerHeart === 'number' &&
+    typeof value.proseHeartsPerReward === 'number' &&
+    typeof value.englishBooksPerHeart === 'number' &&
+    typeof value.englishHeartsPerReward === 'number' &&
+    Object.values(value.milestoneBookStars).every((reward) => typeof reward === 'number')
+  );
+}
+
+function isCurrencyAdjustment(value: unknown): value is CurrencyAdjustment {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    (value.currency === 'bookStars' || value.currency === 'hearts') &&
+    typeof value.amount === 'number' &&
+    typeof value.reason === 'string' &&
+    typeof value.balanceAfter === 'number' &&
+    typeof value.createdAt === 'string'
+  );
+}
+
 function isValidGameBackup(value: unknown): value is GameBackupEnvelope {
   if (!isRecord(value) || !isRecord(value.state)) return false;
   const { state } = value;
@@ -148,11 +184,20 @@ function isValidGameBackup(value: unknown): value is GameBackupEnvelope {
     isRecordOf(state.bookRewardLedger, isBookRewardRecord) &&
     isStringArray(state.claimedHeartMilestones) &&
     (state.claimedBookStarMilestones === undefined || isNumberArray(state.claimedBookStarMilestones)) &&
+    (state.claimedBookStarRewards === undefined || (
+      isRecord(state.claimedBookStarRewards) &&
+      Object.values(state.claimedBookStarRewards).every((reward) => typeof reward === 'number')
+    )) &&
     typeof state.rabbitAdopted === 'boolean' &&
     isStringArray(state.ownedItemIds) &&
     isStringArray(state.equippedBearItems) &&
     isStringArray(state.equippedRabbitItems) &&
     isRecordOf(state.itemTransforms, isItemTransform) &&
+    (state.rewardSettings === undefined || isRewardSettings(state.rewardSettings)) &&
+    (state.currencyAdjustments === undefined || (
+      Array.isArray(state.currencyAdjustments) &&
+      state.currencyAdjustments.every(isCurrencyAdjustment)
+    )) &&
     (value.version === undefined || typeof value.version === 'number')
   );
 }

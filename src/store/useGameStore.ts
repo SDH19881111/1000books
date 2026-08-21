@@ -4,8 +4,13 @@ import {
   BOOK_STAR_MILESTONES,
   BOOK_STARS_PER_BOOK,
   getCurrentReadingWorld,
-  getMilestoneBookStars,
 } from '@/lib/bookEconomy';
+import {
+  DEFAULT_REWARD_SETTINGS,
+  RewardSettings,
+  getConfiguredMilestoneBookStars,
+  normalizeRewardSettings,
+} from '@/lib/rewardSettings';
 import {
   GAME_ITEMS,
   STARTER_ITEM_IDS,
@@ -14,7 +19,7 @@ import {
 } from '@/lib/gameCatalog';
 
 export const GAME_STORAGE_KEY = '1000books-game-storage';
-export const GAME_STORAGE_VERSION = 3;
+export const GAME_STORAGE_VERSION = 4;
 
 export interface RewardableBook {
   id: string;
@@ -26,9 +31,12 @@ export interface RewardableBook {
 export interface BookRewardRecord {
   bookRewardedAt: string;
   bookStarActive: boolean;
+  bookStarsGranted?: number;
   bookStarRevokedAt?: string;
   proseCreditedAt?: string;
+  proseHeartsGranted?: number;
   englishCreditedAt?: string;
+  englishHeartsGranted?: number;
   discoveryRolledAt?: string;
   discoveredItemId?: string;
 }
@@ -59,12 +67,30 @@ export interface RewardLedgerState {
   bookRewardLedger: Record<string, BookRewardRecord>;
   claimedHeartMilestones: string[];
   claimedBookStarMilestones: number[];
+  claimedBookStarRewards: Record<number, number>;
 }
 
 export interface RewardLedgerUpdate {
   state: RewardLedgerState;
   result: BookRewardResult;
 }
+
+export type GameCurrency = 'bookStars' | 'hearts';
+
+export interface CurrencyAdjustment {
+  id: string;
+  currency: GameCurrency;
+  amount: number;
+  reason: string;
+  balanceAfter: number;
+  createdAt: string;
+}
+
+export type CurrencyAdjustmentResult =
+  | 'adjusted'
+  | 'invalid-amount'
+  | 'reason-required'
+  | 'insufficient-balance';
 
 export type PurchaseResult =
   | 'purchased'
@@ -76,6 +102,8 @@ export type PurchaseResult =
   | 'insufficient-hearts';
 
 interface GameStore extends RewardLedgerState {
+  rewardSettings: RewardSettings;
+  currencyAdjustments: CurrencyAdjustment[];
   rabbitAdopted: boolean;
   ownedItemIds: string[];
   equippedBearItems: string[];
@@ -83,6 +111,13 @@ interface GameStore extends RewardLedgerState {
   itemTransforms: Record<string, ItemTransform>;
 
   syncReadingProgress: (books: RewardableBook[]) => void;
+  updateRewardSettings: (settings: RewardSettings) => void;
+  resetRewardSettings: () => void;
+  adjustCurrency: (
+    currency: GameCurrency,
+    amount: number,
+    reason: string
+  ) => CurrencyAdjustmentResult;
   purchaseItem: (itemId: string, readCount: number) => PurchaseResult;
   toggleEquippedItem: (itemId: string) => void;
   setItemTransform: (itemId: string, transform: ItemTransform) => void;
@@ -127,25 +162,30 @@ function rewardLedgerFromStore(state: GameStore): RewardLedgerState {
     bookRewardLedger: state.bookRewardLedger,
     claimedHeartMilestones: state.claimedHeartMilestones,
     claimedBookStarMilestones: state.claimedBookStarMilestones,
+    claimedBookStarRewards: state.claimedBookStarRewards,
   };
 }
 
 export function calculateBookRewardUpdate(
   state: RewardLedgerState,
   book: RewardableBook,
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  rewardSettings = DEFAULT_REWARD_SETTINGS
 ): RewardLedgerUpdate {
   const existingRecord = state.bookRewardLedger[book.id];
   const shouldGrantBookStars = !existingRecord || !existingRecord.bookStarActive;
+  const bookStarsGranted = existingRecord?.bookStarsGranted ?? rewardSettings.bookStarsPerBook;
   const nextRecord: BookRewardRecord = existingRecord
     ? {
         ...existingRecord,
         bookStarActive: true,
+        bookStarsGranted,
         bookStarRevokedAt: undefined,
       }
     : {
         bookRewardedAt: now,
         bookStarActive: true,
+        bookStarsGranted,
       };
 
   let heartsGranted = 0;
@@ -158,11 +198,12 @@ export function calculateBookRewardUpdate(
     nextRecord.proseCreditedAt = now;
     proseCredited = true;
 
-    if (nextCount % 10 === 0) {
+    if (nextCount % rewardSettings.proseBooksPerHeart === 0) {
       const milestoneKey = `prose:${nextCount}`;
       if (!claimedHeartMilestones.includes(milestoneKey)) {
         claimedHeartMilestones.push(milestoneKey);
-        heartsGranted += 1;
+        nextRecord.proseHeartsGranted = rewardSettings.proseHeartsPerReward;
+        heartsGranted += rewardSettings.proseHeartsPerReward;
       }
     }
   }
@@ -172,11 +213,12 @@ export function calculateBookRewardUpdate(
     nextRecord.englishCreditedAt = now;
     englishCredited = true;
 
-    if (nextCount % 10 === 0) {
+    if (nextCount % rewardSettings.englishBooksPerHeart === 0) {
       const milestoneKey = `english:${nextCount}`;
       if (!claimedHeartMilestones.includes(milestoneKey)) {
         claimedHeartMilestones.push(milestoneKey);
-        heartsGranted += 1;
+        nextRecord.englishHeartsGranted = rewardSettings.englishHeartsPerReward;
+        heartsGranted += rewardSettings.englishHeartsPerReward;
       }
     }
   }
@@ -186,7 +228,7 @@ export function calculateBookRewardUpdate(
   }
 
   const wallet = shouldGrantBookStars
-    ? creditBookStars(state, BOOK_STARS_PER_BOOK)
+    ? creditBookStars(state, bookStarsGranted)
     : { bookStars: state.bookStars, bookStarDebt: state.bookStarDebt };
 
   return {
@@ -201,7 +243,7 @@ export function calculateBookRewardUpdate(
       claimedHeartMilestones,
     },
     result: {
-      bookStarsGranted: shouldGrantBookStars ? BOOK_STARS_PER_BOOK : 0,
+      bookStarsGranted: shouldGrantBookStars ? bookStarsGranted : 0,
       bookStarsRevoked: 0,
       heartsGranted,
       proseCredited,
@@ -220,7 +262,8 @@ export function calculateBookRewardRevocation(
     return { state, result: EMPTY_REWARD_RESULT };
   }
 
-  const wallet = revokeBookStars(state, BOOK_STARS_PER_BOOK);
+  const bookStarsGranted = record.bookStarsGranted ?? BOOK_STARS_PER_BOOK;
+  const wallet = revokeBookStars(state, bookStarsGranted);
   return {
     state: {
       ...state,
@@ -236,7 +279,7 @@ export function calculateBookRewardRevocation(
     },
     result: {
       ...EMPTY_REWARD_RESULT,
-      bookStarsRevoked: BOOK_STARS_PER_BOOK,
+      bookStarsRevoked: bookStarsGranted,
     },
   };
 }
@@ -298,6 +341,27 @@ function normalizeItemTransforms(value: unknown) {
   );
 }
 
+function normalizeCurrencyAdjustments(value: unknown): CurrencyAdjustment[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((adjustment): adjustment is CurrencyAdjustment => {
+      if (!adjustment || typeof adjustment !== 'object') return false;
+      const entry = adjustment as Partial<CurrencyAdjustment>;
+      return (
+        typeof entry.id === 'string' &&
+        (entry.currency === 'bookStars' || entry.currency === 'hearts') &&
+        typeof entry.amount === 'number' &&
+        Number.isFinite(entry.amount) &&
+        typeof entry.reason === 'string' &&
+        typeof entry.balanceAfter === 'number' &&
+        Number.isFinite(entry.balanceAfter) &&
+        typeof entry.createdAt === 'string'
+      );
+    })
+    .slice(-100);
+}
+
 export function migratePersistedGameState(persistedState: unknown) {
   const state = (persistedState ?? {}) as Partial<GameStore>;
   const rawLedger = state.bookRewardLedger ?? {};
@@ -307,6 +371,9 @@ export function migratePersistedGameState(persistedState: unknown) {
       {
         ...record,
         bookStarActive: record.bookStarActive ?? true,
+        bookStarsGranted: typeof record.bookStarsGranted === 'number'
+          ? Math.max(0, record.bookStarsGranted)
+          : BOOK_STARS_PER_BOOK,
       },
     ])
   );
@@ -314,17 +381,35 @@ export function migratePersistedGameState(persistedState: unknown) {
     ...STARTER_ITEM_IDS,
     ...normalizeStringArray(state.ownedItemIds),
   ]));
+  const claimedBookStarMilestones = Array.isArray(state.claimedBookStarMilestones)
+    ? state.claimedBookStarMilestones.filter(
+        (milestone): milestone is number => typeof milestone === 'number'
+      )
+    : [];
+  const rawClaimedBookStarRewards = state.claimedBookStarRewards &&
+    typeof state.claimedBookStarRewards === 'object'
+    ? state.claimedBookStarRewards
+    : {};
+  const claimedBookStarRewards = Object.fromEntries(
+    claimedBookStarMilestones.map((milestone) => [
+      milestone,
+      typeof rawClaimedBookStarRewards[milestone] === 'number'
+        ? Math.max(0, rawClaimedBookStarRewards[milestone])
+        : DEFAULT_REWARD_SETTINGS.milestoneBookStars[milestone] ?? 0,
+    ])
+  );
 
   return {
     ...state,
     bookStars: typeof state.bookStars === 'number' ? Math.max(0, state.bookStars) : 0,
     bookStarDebt: typeof state.bookStarDebt === 'number' ? Math.max(0, state.bookStarDebt) : 0,
     hearts: typeof state.hearts === 'number' ? Math.max(0, state.hearts) : 0,
+    rewardSettings: normalizeRewardSettings(state.rewardSettings),
+    currencyAdjustments: normalizeCurrencyAdjustments(state.currencyAdjustments),
     bookRewardLedger,
     claimedHeartMilestones: normalizeStringArray(state.claimedHeartMilestones),
-    claimedBookStarMilestones: Array.isArray(state.claimedBookStarMilestones)
-      ? state.claimedBookStarMilestones.filter((milestone): milestone is number => typeof milestone === 'number')
-      : [],
+    claimedBookStarMilestones,
+    claimedBookStarRewards,
     rabbitAdopted: state.rabbitAdopted ?? false,
     ownedItemIds,
     equippedBearItems: normalizeStringArray(state.equippedBearItems, ['outfit-basic']),
@@ -339,9 +424,12 @@ export const useGameStore = create<GameStore>()(
       bookStars: 0,
       bookStarDebt: 0,
       hearts: 0,
+      rewardSettings: normalizeRewardSettings(DEFAULT_REWARD_SETTINGS),
+      currencyAdjustments: [],
       bookRewardLedger: {},
       claimedHeartMilestones: [],
       claimedBookStarMilestones: [],
+      claimedBookStarRewards: {},
       rabbitAdopted: false,
       ownedItemIds: STARTER_ITEM_IDS,
       equippedBearItems: ['outfit-basic'],
@@ -357,7 +445,12 @@ export const useGameStore = create<GameStore>()(
         let ownedItemIds = [...currentState.ownedItemIds];
 
         sortedBooks.forEach((book, index) => {
-          rewardState = calculateBookRewardUpdate(rewardState, book, now).state;
+          rewardState = calculateBookRewardUpdate(
+            rewardState,
+            book,
+            now,
+            currentState.rewardSettings
+          ).state;
           const record = rewardState.bookRewardLedger[book.id];
           if (record.discoveryRolledAt) return;
 
@@ -399,13 +492,26 @@ export const useGameStore = create<GameStore>()(
         });
 
         const claimedBookStarMilestones = [...rewardState.claimedBookStarMilestones];
+        const claimedBookStarRewards = { ...rewardState.claimedBookStarRewards };
         BOOK_STAR_MILESTONES.forEach((milestone) => {
           if (sortedBooks.length < milestone || claimedBookStarMilestones.includes(milestone)) return;
-          const wallet = creditBookStars(rewardState, getMilestoneBookStars(milestone));
+          const milestoneReward = getConfiguredMilestoneBookStars(
+            currentState.rewardSettings,
+            milestone
+          );
+          const wallet = creditBookStars(
+            rewardState,
+            milestoneReward
+          );
           rewardState = { ...rewardState, ...wallet };
           claimedBookStarMilestones.push(milestone);
+          claimedBookStarRewards[milestone] = milestoneReward;
         });
-        rewardState = { ...rewardState, claimedBookStarMilestones };
+        rewardState = {
+          ...rewardState,
+          claimedBookStarMilestones,
+          claimedBookStarRewards,
+        };
 
         const automaticRewardIds = GAME_ITEMS
           .filter(
@@ -421,6 +527,41 @@ export const useGameStore = create<GameStore>()(
           ...rewardState,
           ownedItemIds,
         });
+      },
+
+      updateRewardSettings: (settings) => {
+        set({ rewardSettings: normalizeRewardSettings(settings) });
+      },
+
+      resetRewardSettings: () => {
+        set({ rewardSettings: normalizeRewardSettings(DEFAULT_REWARD_SETTINGS) });
+      },
+
+      adjustCurrency: (currency, amount, reason) => {
+        const normalizedAmount = Math.trunc(amount);
+        const normalizedReason = reason.trim();
+        if (!Number.isFinite(amount) || normalizedAmount === 0) return 'invalid-amount';
+        if (!normalizedReason) return 'reason-required';
+
+        const state = get();
+        const currentBalance = currency === 'bookStars' ? state.bookStars : state.hearts;
+        const nextBalance = currentBalance + normalizedAmount;
+        if (nextBalance < 0) return 'insufficient-balance';
+
+        const adjustment: CurrencyAdjustment = {
+          id: `adjustment_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          currency,
+          amount: normalizedAmount,
+          reason: normalizedReason,
+          balanceAfter: nextBalance,
+          createdAt: new Date().toISOString(),
+        };
+
+        set({
+          [currency]: nextBalance,
+          currencyAdjustments: [...state.currencyAdjustments, adjustment].slice(-100),
+        } as Pick<GameStore, GameCurrency | 'currencyAdjustments'>);
+        return 'adjusted';
       },
 
       purchaseItem: (itemId, readCount) => {
@@ -503,6 +644,7 @@ export const useGameStore = create<GameStore>()(
       name: GAME_STORAGE_KEY,
       version: GAME_STORAGE_VERSION,
       migrate: migratePersistedGameState,
+      skipHydration: true,
     }
   )
 );

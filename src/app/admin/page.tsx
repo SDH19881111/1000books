@@ -1,223 +1,101 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useBookStore, Book } from '@/store/useBookStore';
 import Navbar from '@/components/Navbar';
 import BookSearch from '@/components/BookSearch';
 import DataBackup from '@/components/DataBackup';
 import BookEditModal from '@/components/BookEditModal';
-
-const ADMIN_PIN = '1234';
+import AdminAccessGate, { AdminAccessControls } from '@/components/AdminAccessGate';
+import AdminSettingsPanel from '@/components/AdminSettingsPanel';
 
 export default function AdminPage() {
-  const [pin, setPin] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinError, setPinError] = useState(false);
-  const [activeSection, setActiveSection] = useState<'books' | 'add'>('books');
+  return (
+    <AdminAccessGate>
+      {(controls) => <AdminDashboard {...controls} />}
+    </AdminAccessGate>
+  );
+}
+
+function AdminDashboard({
+  securityRecord,
+  updateSecurityRecord,
+  lockAdmin,
+}: AdminAccessControls) {
+  const [activeSection, setActiveSection] = useState<'books' | 'add' | 'settings'>('books');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
 
-  const books = useBookStore((s) => s.books);
-  const removeBook = useBookStore((s) => s.removeBook);
-  const stampBook = useBookStore((s) => s.stampBook);
-  const unstampBook = useBookStore((s) => s.unstampBook);
-  const updateBook = useBookStore((s) => s.updateBook);
-  const getReadCount = useBookStore((s) => s.getReadCount);
-
+  const books = useBookStore((state) => state.books);
+  const removeBook = useBookStore((state) => state.removeBook);
+  const stampBook = useBookStore((state) => state.stampBook);
+  const unstampBook = useBookStore((state) => state.unstampBook);
+  const updateBook = useBookStore((state) => state.updateBook);
+  const getReadCount = useBookStore((state) => state.getReadCount);
   const readCount = getReadCount();
 
-  // PIN 입력 화면
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen pb-28 flex flex-col items-center justify-center px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-sm"
-        >
-          <div className="text-center mb-8">
-            <motion.div
-              animate={{ rotate: [0, -10, 10, 0] }}
-              transition={{ repeat: Infinity, duration: 3 }}
-              className="text-6xl mb-4"
-            >
-              👩‍💼
-            </motion.div>
-            <h1 className="font-pen text-3xl text-pink-600 mb-1">관리자 페이지</h1>
-            <p className="text-gray-400 text-sm">부모님 전용 페이지입니다</p>
-          </div>
-
-          {/* PIN 입력 */}
-          <div className={`glass-card rounded-3xl p-6 border-2 transition-all duration-300 ${
-            pinError ? 'border-red-300 bg-red-50/50' : 'border-pink-200'
-          }`}>
-            <p className="text-sm font-bold text-gray-600 text-center mb-4">
-              🔐 PIN 번호를 입력해주세요
-            </p>
-
-            {/* PIN 표시 */}
-            <div className="flex justify-center gap-3 mb-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <motion.div
-                  key={i}
-                  animate={pinError ? { x: [-5, 5, -5, 5, 0] } : {}}
-                  transition={{ duration: 0.3 }}
-                  className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
-                    pin.length > i
-                      ? 'bg-pink-400 border-pink-500 text-white'
-                      : 'bg-pink-50 border-pink-200 text-transparent'
-                  }`}
-                >
-                  {pin.length > i ? '●' : '○'}
-                </motion.div>
-              ))}
-            </div>
-
-            {/* 에러 메시지 */}
-            <AnimatePresence>
-              {pinError && (
-                <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="text-red-500 text-sm text-center mb-3"
-                >
-                  ❌ PIN이 틀렸어요!
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            {/* 숫자 키패드 */}
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
-                <motion.button
-                  key={n}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => {
-                    if (pin.length < 4) {
-                      const newPin = pin + n;
-                      setPin(newPin);
-                      if (newPin.length === 4) {
-                        setTimeout(() => {
-                          if (newPin === ADMIN_PIN) {
-                            setIsAuthenticated(true);
-                          } else {
-                            setPinError(true);
-                            setPin('');
-                            setTimeout(() => setPinError(false), 2000);
-                          }
-                        }, 200);
-                      }
-                    }
-                  }}
-                  className="h-14 bg-white border-2 border-pink-100 rounded-2xl text-xl font-bold text-gray-700 hover:bg-pink-50 hover:border-pink-300 transition-colors shadow-sm"
-                >
-                  {n}
-                </motion.button>
-              ))}
-              <div />
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => {
-                  if (pin.length < 4) {
-                    const newPin = pin + '0';
-                    setPin(newPin);
-                    if (newPin.length === 4) {
-                      setTimeout(() => {
-                        if (newPin === ADMIN_PIN) {
-                          setIsAuthenticated(true);
-                        } else {
-                          setPinError(true);
-                          setPin('');
-                          setTimeout(() => setPinError(false), 2000);
-                        }
-                      }, 200);
-                    }
-                  }
-                }}
-                className="h-14 bg-white border-2 border-pink-100 rounded-2xl text-xl font-bold text-gray-700 hover:bg-pink-50 hover:border-pink-300 transition-colors shadow-sm"
-              >
-                0
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setPin((p) => p.slice(0, -1))}
-                className="h-14 bg-red-50 border-2 border-red-100 rounded-2xl text-xl font-bold text-red-400 hover:bg-red-100 transition-colors shadow-sm"
-              >
-                ⌫
-              </motion.button>
-            </div>
-
-            <p className="text-center text-xs text-gray-300 mt-4">기본 PIN: 1234</p>
-          </div>
-        </motion.div>
-
-        <Navbar />
-      </div>
-    );
-  }
-
-  // 관리자 대시보드
   return (
     <div className="min-h-screen pb-28">
-      {/* 헤더 */}
-      <div className="bg-gradient-to-br from-indigo-400 via-purple-300 to-pink-300 pt-12 pb-6 px-5 relative overflow-hidden">
-        <div className="absolute top-4 right-6 text-4xl opacity-20">⚙️</div>
+      <header className="relative overflow-hidden bg-gradient-to-br from-indigo-400 via-purple-300 to-pink-300 px-5 pb-6 pt-12">
+        <div className="absolute right-6 top-4 text-4xl opacity-20">⚙️</div>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-pen text-3xl text-white drop-shadow">관리자</h1>
-            <p className="text-purple-100 text-sm mt-1">부모님 관리 페이지</p>
+            <p className="mt-1 text-sm text-purple-100">부모님 관리 페이지</p>
           </div>
           <motion.button
+            type="button"
             whileTap={{ scale: 0.9 }}
-            onClick={() => setIsAuthenticated(false)}
-            className="bg-white/20 text-white text-sm px-3 py-1.5 rounded-xl backdrop-blur-sm"
+            onClick={lockAdmin}
+            className="rounded-xl bg-white/20 px-3 py-1.5 text-sm text-white backdrop-blur-sm"
           >
             🔒 잠금
           </motion.button>
         </div>
 
-        {/* 요약 통계 */}
-        <div className="flex gap-4 mt-4">
-          <div className="bg-white/20 rounded-2xl px-4 py-2 text-center backdrop-blur-sm">
-            <p className="text-white font-black text-2xl">{readCount}</p>
-            <p className="text-purple-100 text-xs">읽은 책</p>
+        <div className="mt-4 flex gap-4">
+          <div className="rounded-2xl bg-white/20 px-4 py-2 text-center backdrop-blur-sm">
+            <p className="text-2xl font-black text-white">{readCount}</p>
+            <p className="text-xs text-purple-100">읽은 책</p>
           </div>
-          <div className="bg-white/20 rounded-2xl px-4 py-2 text-center backdrop-blur-sm">
-            <p className="text-white font-black text-2xl">{books.length}</p>
-            <p className="text-purple-100 text-xs">전체 등록</p>
+          <div className="rounded-2xl bg-white/20 px-4 py-2 text-center backdrop-blur-sm">
+            <p className="text-2xl font-black text-white">{books.length}</p>
+            <p className="text-xs text-purple-100">전체 등록</p>
           </div>
-          <div className="bg-white/20 rounded-2xl px-4 py-2 text-center backdrop-blur-sm">
-            <p className="text-white font-black text-2xl">{books.length - readCount}</p>
-            <p className="text-purple-100 text-xs">읽을 책</p>
+          <div className="rounded-2xl bg-white/20 px-4 py-2 text-center backdrop-blur-sm">
+            <p className="text-2xl font-black text-white">{books.length - readCount}</p>
+            <p className="text-xs text-purple-100">읽을 책</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="px-4 py-4 space-y-4">
+      <div className="space-y-4 px-4 py-4">
         <DataBackup />
 
-        {/* 섹션 탭 */}
-        <div className="flex bg-pink-100/60 rounded-2xl p-1">
-          {(['books', 'add'] as const).map((s) => (
+        <div className="flex rounded-2xl bg-pink-100/60 p-1">
+          {([
+            ['books', '📚 도서 관리'],
+            ['add', '➕ 책 추가'],
+            ['settings', '⚙️ 설정'],
+          ] as const).map(([section, label]) => (
             <button
-              key={s}
-              onClick={() => setActiveSection(s)}
-              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${
-                activeSection === s ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400'
+              key={section}
+              type="button"
+              onClick={() => setActiveSection(section)}
+              className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors ${
+                activeSection === section ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400'
               }`}
             >
-              {s === 'books' ? '📚 도서 관리' : '➕ 책 추가'}
+              {label}
             </button>
           ))}
         </div>
 
-        {/* 도서 목록 관리 */}
         {activeSection === 'books' && (
           <div className="space-y-2">
             {books.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <p className="text-4xl mb-2">📭</p>
+              <div className="py-12 text-center text-gray-400">
+                <p className="mb-2 text-4xl">📭</p>
                 <p className="text-sm">등록된 책이 없어요</p>
               </div>
             ) : (
@@ -227,23 +105,21 @@ export default function AdminPage() {
                   layout
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -50 }}
-                  className="glass-card rounded-2xl p-3 flex items-center gap-3 border border-purple-100"
+                  className="glass-card flex items-center gap-3 rounded-2xl border border-purple-100 p-3"
                 >
-                  {/* 책 정보 */}
-                  <div className="w-10 h-12 rounded-xl overflow-hidden bg-purple-100 flex items-center justify-center flex-shrink-0 text-xl">
+                  <div className="flex h-12 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-purple-100 text-xl">
                     {book.coverUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
+                      <img src={book.coverUrl} alt={book.title} className="h-full w-full object-cover" />
                     ) : (
                       '📖'
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-700 line-clamp-1">{book.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-1 text-sm font-bold text-gray-700">{book.title}</p>
                     <p className="text-xs text-gray-400">{book.author}</p>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
                         book.status === 'read'
                           ? 'bg-green-100 text-green-600'
                           : 'bg-gray-100 text-gray-500'
@@ -263,23 +139,23 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* 액션 버튼들 */}
-                  <div className="flex flex-col gap-1 flex-shrink-0">
+                  <div className="flex flex-shrink-0 flex-col gap-1">
                     <motion.button
+                      type="button"
                       whileTap={{ scale: 0.9 }}
                       onClick={() => setEditingBook(book)}
                       className="rounded-lg bg-purple-100 px-2 py-1 text-xs font-bold text-purple-600 hover:bg-purple-200"
                     >
                       ✏️ 수정
                     </motion.button>
-                    {/* 도장 토글 */}
                     <motion.button
+                      type="button"
                       whileTap={{ scale: 0.9 }}
                       onClick={() => {
                         if (book.status === 'read') unstampBook(book.id);
                         else stampBook(book.id);
                       }}
-                      className={`text-xs px-2 py-1 rounded-lg font-bold ${
+                      className={`rounded-lg px-2 py-1 text-xs font-bold ${
                         book.status === 'read'
                           ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
                           : 'bg-green-100 text-green-600 hover:bg-green-200'
@@ -287,12 +163,11 @@ export default function AdminPage() {
                     >
                       {book.status === 'read' ? '↩ 취소' : '✅ 찍기'}
                     </motion.button>
-
-                    {/* 삭제 */}
                     <motion.button
+                      type="button"
                       whileTap={{ scale: 0.9 }}
                       onClick={() => removeBook(book.id)}
-                      className="text-xs px-2 py-1 rounded-lg font-bold bg-red-100 text-red-500 hover:bg-red-200"
+                      className="rounded-lg bg-red-100 px-2 py-1 text-xs font-bold text-red-500 hover:bg-red-200"
                     >
                       🗑 삭제
                     </motion.button>
@@ -303,13 +178,19 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 책 추가 */}
         {activeSection === 'add' && (
-          <div className="glass-card rounded-2xl p-4 border border-purple-100">
+          <div className="glass-card rounded-2xl border border-purple-100 p-4">
             <BookSearch onClose={() => setActiveSection('books')} />
           </div>
         )}
 
+        {activeSection === 'settings' && (
+          <AdminSettingsPanel
+            securityRecord={securityRecord}
+            onSecurityRecordChange={updateSecurityRecord}
+            onLock={lockAdmin}
+          />
+        )}
       </div>
 
       <BookEditModal
