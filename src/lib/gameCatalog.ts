@@ -292,6 +292,10 @@ const HEART_SHOP_ITEMS: GameItem[] = [
   { id: 'rabbit-backpack', name: '꼬마 책가방', area: 'rabbit', slot: 'rabbit-back', art: 'rabbit-backpack', emoji: '🎒', source: 'heart-shop', worldId: 'story-forest', currency: 'hearts', price: 1 },
   { id: 'rabbit-carrot', name: '당근 장난감', area: 'rabbit', slot: 'rabbit-prop', art: 'rabbit-carrot', emoji: '🥕', source: 'heart-shop', worldId: 'dino-booktown', currency: 'hearts', price: 1 },
   { id: 'rabbit-book', name: '토끼 그림책', area: 'rabbit', slot: 'rabbit-prop', art: 'rabbit-book', emoji: '📖', source: 'heart-shop', worldId: 'story-forest', currency: 'hearts', price: 1 },
+  { id: 'rabbit-flower-crown', name: '봄꽃 별 왕관', area: 'rabbit', slot: 'rabbit-head', art: 'rabbit-flower-crown', emoji: '🌸', source: 'heart-shop', worldId: 'story-forest', currency: 'hearts', price: 1 },
+  { id: 'rabbit-sailor-cap', name: '파도빛 선원 모자', area: 'rabbit', slot: 'rabbit-head', art: 'rabbit-sailor-cap', emoji: '⚓', source: 'heart-shop', worldId: 'ocean-library', currency: 'hearts', price: 1 },
+  { id: 'rabbit-mint-cape', name: '구름빛 민트 케이프', area: 'rabbit', slot: 'rabbit-neck', art: 'rabbit-mint-cape', emoji: '🪽', source: 'heart-shop', worldId: 'cloud-village', currency: 'hearts', price: 1 },
+  { id: 'rabbit-telescope', name: '별빛 꼬마 망원경', area: 'rabbit', slot: 'rabbit-prop', art: 'rabbit-telescope', emoji: '🔭', source: 'heart-shop', worldId: 'space-library', currency: 'hearts', price: 1 },
 ];
 
 export const GAME_ITEMS: GameItem[] = [
@@ -328,6 +332,14 @@ if (process.env.NODE_ENV !== 'production') {
 
 export function getGameItem(itemId: string) {
   return GAME_ITEMS.find((item) => item.id === itemId);
+}
+
+export function getWorldItems(worldId: string) {
+  return GAME_ITEMS.filter((item) => item.worldId === worldId && item.area !== 'rabbit');
+}
+
+export function getRabbitItems() {
+  return GAME_ITEMS.filter((item) => item.area === 'rabbit');
 }
 
 export function getItemWorld(item: GameItem) {

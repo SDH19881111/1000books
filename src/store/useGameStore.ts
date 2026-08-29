@@ -19,7 +19,7 @@ import {
 } from '@/lib/gameCatalog';
 
 export const GAME_STORAGE_KEY = '1000books-game-storage';
-export const GAME_STORAGE_VERSION = 4;
+export const GAME_STORAGE_VERSION = 5;
 
 export interface RewardableBook {
   id: string;
@@ -306,6 +306,18 @@ function normalizeStringArray(value: unknown, fallback: string[] = []) {
     : fallback;
 }
 
+function normalizeEquippedRabbitItems(value: unknown) {
+  return normalizeStringArray(value).reduce<string[]>((equippedItems, itemId) => {
+    const item = getGameItem(itemId);
+    if (!item || item.area !== 'rabbit' || item.id === 'rabbit-pet') return equippedItems;
+
+    return [
+      ...equippedItems.filter((equippedId) => getGameItem(equippedId)?.slot !== item.slot),
+      itemId,
+    ];
+  }, []);
+}
+
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -413,7 +425,7 @@ export function migratePersistedGameState(persistedState: unknown) {
     rabbitAdopted: state.rabbitAdopted ?? false,
     ownedItemIds,
     equippedBearItems: normalizeStringArray(state.equippedBearItems, ['outfit-basic']),
-    equippedRabbitItems: normalizeStringArray(state.equippedRabbitItems),
+    equippedRabbitItems: normalizeEquippedRabbitItems(state.equippedRabbitItems),
     itemTransforms: normalizeItemTransforms(state.itemTransforms),
   } as GameStore;
 }
@@ -605,18 +617,27 @@ export const useGameStore = create<GameStore>()(
           ? state.equippedRabbitItems
           : state.equippedBearItems;
         const isEquipped = equippedItems.includes(itemId);
-        // 방과 마당의 같은 종류 아이템도 함께 놓고 배치 편집에서 정리할 수 있게 합니다.
-        // 곰 몸체 이미지를 통째로 바꾸는 전신 의상만 실제 렌더링 구조상 한 벌씩 유지합니다.
-        const replacementIds = item.area === 'character' && item.slot === 'outfit' && item.art
+        // 토끼 장식은 같은 위치의 아이템끼리 겹치지 않게 한 개만 유지합니다.
+        // 곰 몸체 이미지를 통째로 바꾸는 전신 의상도 실제 렌더링 구조상 한 벌씩 유지합니다.
+        const replacementIds = isRabbitItem
           ? GAME_ITEMS
               .filter(
                 (candidate) =>
-                  candidate.area === 'character' &&
-                  candidate.slot === 'outfit' &&
-                  Boolean(candidate.art)
+                  candidate.area === 'rabbit' &&
+                  candidate.slot === item.slot &&
+                  candidate.id !== 'rabbit-pet'
               )
               .map((candidate) => candidate.id)
-          : [];
+          : item.area === 'character' && item.slot === 'outfit' && item.art
+            ? GAME_ITEMS
+                .filter(
+                  (candidate) =>
+                    candidate.area === 'character' &&
+                    candidate.slot === 'outfit' &&
+                    Boolean(candidate.art)
+                )
+                .map((candidate) => candidate.id)
+            : [];
         const nextEquipped = isEquipped
           ? equippedItems.filter((id) => id !== itemId)
           : [

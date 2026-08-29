@@ -164,6 +164,11 @@ body {
   background-size: 301.5% 301.5%;
 }
 
+.game-sprite-rabbit-extra {
+  background-image: url('/game/rabbit-extra-sprites.png');
+  background-size: 201.5% 201.5%;
+}
+
 .game-world-scene {
   position: relative;
   min-height: 360px;
@@ -242,50 +247,99 @@ body {
   filter: drop-shadow(0 8px 10px rgba(92, 45, 145, .28));
 }
 
-.game-world-room {
+.game-world-scene[data-world='cozy-room'] {
   background:
-    linear-gradient(180deg, transparent 68%, rgba(222, 178, 138, .28) 68%),
+    radial-gradient(circle at 20% 18%, rgba(255,255,255,.9) 0 8%, transparent 9%),
+    linear-gradient(180deg, transparent 68%, rgba(222, 178, 138, .32) 68%),
     linear-gradient(145deg, #fff0f5, #f2eaff 55%, #e5f6ff);
 }
 
-.game-world-yard {
+.game-world-scene[data-world='story-forest'] {
   background:
-    radial-gradient(circle at 16% 16%, rgba(255,255,255,.85) 0 5%, transparent 6%),
-    linear-gradient(180deg, #dff4ff 0 62%, #cceebc 62% 100%);
+    radial-gradient(circle at 82% 18%, rgba(255,244,164,.9) 0 7%, transparent 8%),
+    radial-gradient(ellipse at 16% 70%, rgba(76,139,78,.34) 0 22%, transparent 23%),
+    linear-gradient(180deg, #dff4dc 0 58%, #a9d18e 58% 100%);
 }
 
-.game-world-window {
-  position: absolute;
-  left: 28px;
-  top: 35px;
-  width: 92px;
-  height: 112px;
-  border: 8px solid rgba(255,255,255,.92);
-  border-radius: 46px 46px 18px 18px;
-  background: linear-gradient(#bfe8ff, #fff7bd);
-  box-shadow: 0 8px 18px rgba(97, 102, 152, .15);
+.game-world-scene[data-world='ocean-library'] {
+  background:
+    radial-gradient(circle at 16% 24%, rgba(255,255,255,.7) 0 2%, transparent 2.5%),
+    radial-gradient(circle at 78% 35%, rgba(255,255,255,.55) 0 3%, transparent 3.5%),
+    linear-gradient(180deg, #b9efff 0, #72cde0 48%, #3f91b7 100%);
 }
 
-.game-world-window::before,
-.game-world-window::after {
-  content: '';
-  position: absolute;
-  background: rgba(255,255,255,.9);
+.game-world-scene[data-world='magic-kingdom'] {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,239,169,.48) 0 10%, transparent 26%),
+    linear-gradient(180deg, #7c65ba 0 60%, #caa5e8 60% 100%);
 }
 
-.game-world-window::before { left: 38px; top: 0; width: 5px; height: 100%; }
-.game-world-window::after { left: 0; top: 46px; width: 100%; height: 5px; }
+.game-world-scene[data-world='cloud-village'] {
+  background:
+    radial-gradient(ellipse at 22% 25%, rgba(255,255,255,.88) 0 13%, transparent 14%),
+    radial-gradient(ellipse at 78% 40%, rgba(255,255,255,.7) 0 17%, transparent 18%),
+    linear-gradient(180deg, #cbeeff 0 68%, #f5e7ff 68% 100%);
+}
 
-.game-world-cloud {
+.game-world-scene[data-world='space-library'] {
+  background:
+    radial-gradient(circle at 18% 20%, #fff4a8 0 1%, transparent 1.5%),
+    radial-gradient(circle at 76% 30%, #fff 0 1%, transparent 1.5%),
+    radial-gradient(circle at 58% 12%, rgba(138,118,255,.7) 0 10%, transparent 11%),
+    linear-gradient(180deg, #17194e 0 62%, #343178 62% 100%);
+}
+
+.game-world-scene[data-world='dino-booktown'] {
+  background:
+    radial-gradient(circle at 82% 18%, rgba(255,221,111,.9) 0 8%, transparent 9%),
+    linear-gradient(180deg, #f8d9a5 0 58%, #8fc477 58% 100%);
+}
+
+.game-world-scene[data-world='snow-kingdom'] {
+  background:
+    radial-gradient(circle at 15% 17%, rgba(255,255,255,.95) 0 1.4%, transparent 1.8%),
+    radial-gradient(circle at 72% 26%, rgba(255,255,255,.85) 0 1.2%, transparent 1.6%),
+    linear-gradient(180deg, #d8efff 0 62%, #f8fcff 62% 100%);
+}
+
+.game-world-scene[data-world='dragon-kingdom'] {
+  background:
+    radial-gradient(circle at 78% 18%, rgba(255,178,88,.5) 0 11%, transparent 22%),
+    linear-gradient(180deg, #49304f 0 58%, #8a4f4a 58% 100%);
+}
+
+.game-world-scene[data-world='golden-library'] {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,255,222,.88) 0 8%, transparent 25%),
+    linear-gradient(180deg, #fff0b8 0 62%, #d7a94f 62% 100%);
+}
+
+.game-world-scene[data-world='rabbit-friend'] {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,.9) 0 7%, transparent 8%),
+    radial-gradient(circle at 80% 30%, rgba(255,244,251,.86) 0 10%, transparent 11%),
+    linear-gradient(180deg, #ffe5f2 0 64%, #cdebb8 64% 100%);
+}
+
+.game-world-landmark {
   position: absolute;
-  left: 36px;
-  top: 45px;
-  width: 88px;
-  height: 28px;
+  z-index: 1;
+  left: 16px;
+  top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255,255,255,.65);
   border-radius: 999px;
-  background: rgba(255,255,255,.8);
-  box-shadow: 25px -12px 0 3px rgba(255,255,255,.8), 55px 0 0 rgba(255,255,255,.8);
+  background: rgba(255,255,255,.72);
+  padding: 5px 10px;
+  color: rgba(76,55,99,.74);
+  box-shadow: 0 5px 14px rgba(82,60,103,.1);
+  backdrop-filter: blur(6px);
 }
+
+.game-world-landmark span { font-size: 17px; }
+.game-world-landmark small { font-size: 10px; font-weight: 900; }
 
 .game-world-sparkles {
   position: absolute;

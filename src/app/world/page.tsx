@@ -17,6 +17,8 @@ import {
   getGameItem,
   getItemRequiredBooks,
   getItemWorld,
+  getRabbitItems,
+  getWorldItems,
 } from '@/lib/gameCatalog';
 import { useBookStore } from '@/store/useBookStore';
 import {
@@ -27,11 +29,11 @@ import {
 } from '@/store/useGameStore';
 import type { ItemTransform, PurchaseResult } from '@/store/useGameStore';
 
-type WorldView = 'room' | 'yard' | 'rabbit';
+type WorldView = 'world' | 'rabbit';
 type ItemFilter = 'owned' | 'shop';
 
 interface SpriteDefinition {
-  sheet: 'bear' | 'item' | 'rabbit' | 'world';
+  sheet: 'bear' | 'item' | 'rabbit' | 'rabbit-extra' | 'world';
   position: string;
   backgroundImage?: string;
   backgroundSize?: string;
@@ -58,7 +60,25 @@ const BASE_SPRITES: Record<string, SpriteDefinition> = {
   'rabbit-backpack': { sheet: 'rabbit', position: '0% 100%' },
   'rabbit-carrot': { sheet: 'rabbit', position: '50% 100%' },
   'rabbit-book': { sheet: 'rabbit', position: '100% 100%' },
+  'rabbit-flower-crown': { sheet: 'rabbit-extra', position: '0% 0%' },
+  'rabbit-sailor-cap': { sheet: 'rabbit-extra', position: '100% 0%' },
+  'rabbit-mint-cape': { sheet: 'rabbit-extra', position: '0% 100%' },
+  'rabbit-telescope': { sheet: 'rabbit-extra', position: '100% 100%' },
 };
+
+const SPECIAL_SCENE_ITEM_CLASSES: Record<string, string> = {
+  'room-rug': 'game-scene-rug',
+  'room-shelf': 'game-scene-shelf',
+  'yard-tree': 'game-scene-tree',
+  'yard-flowers': 'game-scene-flowers',
+  'yard-swing': 'game-scene-swing',
+  'yard-swing-reward': 'game-scene-swing',
+  'backpack-mint': 'game-bear-backpack',
+  'hat-crown': 'game-bear-crown',
+  'face-glasses': 'game-bear-glasses',
+};
+
+const BEAR_LAYER_ITEM_IDS = new Set(['backpack-mint', 'hat-crown', 'face-glasses']);
 
 const EXTRA_CROPPED_WORLD_SPRITES = new Set([
   'world-cozy-room-8', // 책 읽는 새 친구
@@ -229,9 +249,9 @@ export default function WorldPage() {
   const currentWorld = getCurrentReadingWorld(readCount);
   const nextWorld = getNextReadingWorld(readCount);
 
-  const [view, setView] = useState<WorldView>('room');
+  const [view, setView] = useState<WorldView>('world');
   const [filter, setFilter] = useState<ItemFilter>('owned');
-  const [selectedWorldId, setSelectedWorldId] = useState(currentWorld.id);
+  const [selectedWorldId, setSelectedWorldId] = useState<string | null>(null);
   const [message, setMessage] = useState('책을 읽으면 책별을 얻어요!');
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedLayoutItemId, setSelectedLayoutItemId] = useState<string | null>(null);
@@ -271,7 +291,7 @@ export default function WorldPage() {
     return () => observer.disconnect();
   }, []);
 
-  const selectedWorld = getReadingWorld(selectedWorldId) ?? currentWorld;
+  const selectedWorld = getReadingWorld(selectedWorldId ?? currentWorld.id) ?? currentWorld;
   const selectedLayoutItem = selectedLayoutItemId
     ? getGameItem(selectedLayoutItemId)
     : undefined;
@@ -279,15 +299,17 @@ export default function WorldPage() {
   const englishCount = Object.values(ledger).filter((record) => record.englishCreditedAt).length;
 
   const outfit = GAME_ITEMS.find(
-    (item) => item.art && item.slot === 'outfit' && equippedBearItems.includes(item.id)
+    (item) =>
+      item.art &&
+      item.slot === 'outfit' &&
+      item.worldId === selectedWorld.id &&
+      equippedBearItems.includes(item.id)
   ) ?? GAME_ITEMS[0];
 
   const visibleItems = useMemo(() => {
-    const areaItems = GAME_ITEMS.filter((item) => {
-      if (item.worldId !== selectedWorld.id) return false;
-      if (view === 'rabbit') return item.area === 'rabbit';
-      return item.area === 'character' || item.area === view;
-    });
+    const areaItems = view === 'rabbit'
+      ? getRabbitItems()
+      : getWorldItems(selectedWorld.id);
 
     if (filter === 'owned') {
       return areaItems.filter((item) => ownedItemIds.includes(item.id));
@@ -306,13 +328,15 @@ export default function WorldPage() {
     ownedItemIds.includes(item.id)
   ).length;
 
-  const genericEquippedItems = GAME_ITEMS.filter(
+  const equippedWorldItems = getWorldItems(selectedWorld.id).filter(
     (item) =>
-      !item.art &&
-      item.iconArt &&
+      item.id !== outfit.id &&
+      item.id !== 'outfit-basic' &&
       equippedBearItems.includes(item.id) &&
-      (item.area === 'character' || item.area === view)
+      ownedItemIds.includes(item.id)
   );
+  const bearLayerItems = equippedWorldItems.filter((item) => BEAR_LAYER_ITEM_IDS.has(item.id));
+  const sceneWorldItems = equippedWorldItems.filter((item) => !BEAR_LAYER_ITEM_IDS.has(item.id));
 
   const getSavedTransform = (itemId: string) =>
     itemTransforms[itemId] ?? DEFAULT_ITEM_TRANSFORM;
@@ -352,6 +376,7 @@ export default function WorldPage() {
       return;
     }
     setSelectedWorldId(world.id);
+    setView('world');
     setSelectedLayoutItemId(null);
     setMessage(`${world.emoji} ${world.name} 아이템을 보고 있어요.`);
   };
@@ -393,9 +418,6 @@ export default function WorldPage() {
     setMessage(isEquipped ? `${item.name}을(를) 벗었어요.` : `${item.name}을(를) 사용했어요!`);
   };
 
-  const hasSceneItem = (itemId: string) =>
-    ownedItemIds.includes(itemId) && equippedBearItems.includes(itemId);
-
   const renderAdjustableSprite = (itemId: string, art: string | undefined, className: string) => (
     <AdjustableSprite
       key={itemId}
@@ -411,6 +433,12 @@ export default function WorldPage() {
       onTransformChange={setItemTransform}
     />
   );
+
+  const renderWorldItem = (item: GameItem) => {
+    const className = SPECIAL_SCENE_ITEM_CLASSES[item.id] ??
+      `game-generic-item game-generic-${item.area} game-generic-${item.slot}`;
+    return renderAdjustableSprite(item.id, item.art ?? item.iconArt, className);
+  };
 
   return (
     <div className="min-h-screen pb-28">
@@ -458,11 +486,11 @@ export default function WorldPage() {
           )}
         </section>
 
-        <section aria-label="독서 세계 선택" className="-mx-3 overflow-x-auto px-3 pb-1">
+        <section aria-label="배경 선택" className="-mx-3 overflow-x-auto px-3 pb-1">
           <div className="flex w-max gap-2">
             {READING_WORLDS.map((world) => {
               const unlocked = readCount >= world.unlockAt;
-              const selected = world.id === selectedWorld.id;
+              const selected = view === 'world' && world.id === selectedWorld.id;
               return (
                 <button
                   key={world.id}
@@ -487,36 +515,42 @@ export default function WorldPage() {
           </div>
         </section>
 
+        <button
+          type="button"
+          aria-pressed={view === 'rabbit'}
+          onClick={() => handleViewChange('rabbit')}
+          className={`flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left transition-colors ${
+            view === 'rabbit'
+              ? 'border-pink-300 bg-pink-100 text-pink-700 shadow-sm'
+              : 'border-white bg-white/80 text-gray-600'
+          }`}
+        >
+          <span>
+            <strong className="block text-xs">🐰 토끼 친구</strong>
+            <span className="mt-0.5 block text-[10px] text-pink-400">친구와 전용 장식을 한곳에서 꾸며요.</span>
+          </span>
+          <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-pink-500">
+            {getRabbitItems().filter((item) => ownedItemIds.includes(item.id)).length}/{getRabbitItems().length}
+          </span>
+        </button>
+
         <section className="rounded-2xl border border-purple-100 bg-purple-50/80 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <strong className="text-xs text-purple-700">{selectedWorld.emoji} {selectedWorld.name}</strong>
-              <p className="mt-0.5 text-[10px] text-purple-400">{selectedWorld.description}</p>
+              <strong className="text-xs text-purple-700">
+                {view === 'rabbit' ? '🐰 토끼 친구 꾸미기' : `${selectedWorld.emoji} ${selectedWorld.name}`}
+              </strong>
+              <p className="mt-0.5 text-[10px] text-purple-400">
+                {view === 'rabbit' ? '모든 세계에서 만난 토끼 전용 아이템만 보여요.' : selectedWorld.description}
+              </p>
             </div>
-            <span className="whitespace-nowrap rounded-full bg-white px-2 py-1 text-[10px] font-black text-purple-500">
-              {selectedWorldOwnedCount}/12
-            </span>
+            {view === 'world' && (
+              <span className="whitespace-nowrap rounded-full bg-white px-2 py-1 text-[10px] font-black text-purple-500">
+                {selectedWorldOwnedCount}/{selectedWorldContent.length}
+              </span>
+            )}
           </div>
         </section>
-
-        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-purple-100/70 p-1">
-          {([
-            ['room', '🏠 방'],
-            ['yard', '🌳 마당'],
-            ['rabbit', '🐰 토끼 친구'],
-          ] as const).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => handleViewChange(value)}
-              className={`rounded-xl py-2 text-xs font-black transition-colors ${
-                view === value ? 'bg-white text-purple-700 shadow-sm' : 'text-purple-400'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
         <section className={`game-layout-editor ${layoutEditMode ? 'game-layout-editor-active' : ''}`}>
           <div className="flex items-center justify-between gap-3">
@@ -579,63 +613,59 @@ export default function WorldPage() {
 
         <section
           ref={sceneRef}
-          aria-label={view === 'yard' ? '곰돌이의 마당' : view === 'rabbit' ? '곰돌이와 토끼 친구' : '곰돌이의 방'}
-          className={`game-world-scene ${view === 'yard' ? 'game-world-yard' : 'game-world-room'} ${layoutEditMode ? 'game-world-editing' : ''}`}
+          aria-label={view === 'rabbit' ? '곰돌이와 토끼 친구' : `${selectedWorld.name} 배경`}
+          data-world={view === 'rabbit' ? 'rabbit-friend' : selectedWorld.id}
+          className={`game-world-scene ${layoutEditMode ? 'game-world-editing' : ''}`}
         >
           <div className="game-world-sparkles" aria-hidden>✦　·　✧</div>
-          {view !== 'yard' && <div className="game-world-window" aria-hidden />}
-          {view === 'yard' && <div className="game-world-cloud" aria-hidden />}
+          <div className="game-world-landmark" aria-hidden>
+            <span>{view === 'rabbit' ? '🐰' : selectedWorld.emoji}</span>
+            <small>{view === 'rabbit' ? '토끼 친구' : selectedWorld.name}</small>
+          </div>
 
-          {view === 'room' && hasSceneItem('room-rug') && renderAdjustableSprite('room-rug', 'rug', 'game-scene-rug')}
-          {view === 'room' && hasSceneItem('room-shelf') && renderAdjustableSprite('room-shelf', 'shelf', 'game-scene-shelf')}
-          {view === 'yard' && hasSceneItem('yard-tree') && renderAdjustableSprite('yard-tree', 'tree', 'game-scene-tree')}
-          {view === 'yard' && hasSceneItem('yard-flowers') && renderAdjustableSprite('yard-flowers', 'flowers', 'game-scene-flowers')}
-          {view === 'yard' && hasSceneItem('yard-swing') && renderAdjustableSprite('yard-swing', 'swing', 'game-scene-swing')}
-          {view === 'yard' && hasSceneItem('yard-swing-reward') && renderAdjustableSprite('yard-swing-reward', 'swing', 'game-scene-swing')}
-
-          {genericEquippedItems.map((item) => (
-            renderAdjustableSprite(
-              item.id,
-              item.iconArt,
-              `game-generic-item game-generic-${item.area} game-generic-${item.slot}`
-            )
-          ))}
+          {view === 'world' && sceneWorldItems.map(renderWorldItem)}
 
           <motion.div
             animate={{ y: [0, -4, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             className={`game-bear-wrap ${view === 'rabbit' ? 'game-bear-with-rabbit' : ''}`}
           >
-            {equippedBearItems.includes('backpack-mint') && renderAdjustableSprite('backpack-mint', 'backpack', 'game-bear-backpack')}
+            {view === 'world' && bearLayerItems
+              .filter((item) => item.slot === 'back')
+              .map(renderWorldItem)}
             <Sprite art={outfit.art} className="game-bear" label={outfit.name} />
-            {equippedBearItems.includes('hat-crown') && renderAdjustableSprite('hat-crown', 'crown', 'game-bear-crown')}
-            {equippedBearItems.includes('face-glasses') && renderAdjustableSprite('face-glasses', 'glasses', 'game-bear-glasses')}
+            {view === 'world' && bearLayerItems
+              .filter((item) => item.slot !== 'back')
+              .map(renderWorldItem)}
           </motion.div>
 
-          <motion.div
-            animate={rabbitAdopted ? { y: [0, -3, 0] } : undefined}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className={`game-rabbit-wrap ${view === 'rabbit' ? 'game-rabbit-focus' : ''}`}
-          >
-            {rabbitAdopted ? (
-              <>
-                {equippedRabbitItems.includes('rabbit-backpack') && renderAdjustableSprite('rabbit-backpack', 'rabbit-backpack', 'game-rabbit-layer game-rabbit-back')}
-                <Sprite art="rabbit-base" className="game-rabbit-base" label="곰돌이의 작은 토끼 친구" />
-                {equippedRabbitItems.map((itemId) => {
-                  if (itemId === 'rabbit-backpack') return null;
-                  const item = GAME_ITEMS.find((candidate) => candidate.id === itemId);
-                  return item?.art
-                    ? renderAdjustableSprite(item.id, item.art, 'game-rabbit-layer')
-                    : null;
-                })}
-              </>
-            ) : (
-              <>
-                <Sprite art="rabbit-base" className="game-rabbit-base game-rabbit-disabled" label="아직 만나지 않은 토끼 친구" />
-                <div className="game-rabbit-locked"><strong>{readCount < 100 ? '🔒 100권' : '♥ 5'}</strong></div>
-              </>
-            )}
-          </motion.div>
+          {view === 'rabbit' && (
+            <motion.div
+              animate={rabbitAdopted ? { y: [0, -3, 0] } : undefined}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="game-rabbit-wrap game-rabbit-focus"
+            >
+              {rabbitAdopted ? (
+                <>
+                  {equippedRabbitItems.includes('rabbit-backpack') && renderAdjustableSprite('rabbit-backpack', 'rabbit-backpack', 'game-rabbit-layer game-rabbit-back')}
+                  {equippedRabbitItems.includes('rabbit-mint-cape') && renderAdjustableSprite('rabbit-mint-cape', 'rabbit-mint-cape', 'game-rabbit-layer game-rabbit-back')}
+                  <Sprite art="rabbit-base" className="game-rabbit-base" label="곰돌이의 작은 토끼 친구" />
+                  {equippedRabbitItems.map((itemId) => {
+                    if (itemId === 'rabbit-backpack' || itemId === 'rabbit-mint-cape') return null;
+                    const item = GAME_ITEMS.find((candidate) => candidate.id === itemId);
+                    return item?.art
+                      ? renderAdjustableSprite(item.id, item.art, 'game-rabbit-layer')
+                      : null;
+                  })}
+                </>
+              ) : (
+                <>
+                  <Sprite art="rabbit-base" className="game-rabbit-base game-rabbit-disabled" label="아직 만나지 않은 토끼 친구" />
+                  <div className="game-rabbit-locked"><strong>{readCount < 100 ? '🔒 100권' : '♥ 5'}</strong></div>
+                </>
+              )}
+            </motion.div>
+          )}
         </section>
 
         <p role="status" className="rounded-2xl bg-white/80 px-3 py-2 text-center text-xs font-bold text-purple-600 shadow-sm">
@@ -645,8 +675,14 @@ export default function WorldPage() {
         <section className="glass-card rounded-3xl border border-purple-100 p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-black text-gray-700">꾸미기 아이템</h2>
-              <p className="text-[10px] text-gray-400">보유 아이템을 누르면 착용하거나 배치해요.</p>
+              <h2 className="text-sm font-black text-gray-700">
+                {view === 'rabbit' ? '토끼 친구 아이템' : `${selectedWorld.name} 아이템`}
+              </h2>
+              <p className="text-[10px] text-gray-400">
+                {view === 'rabbit'
+                  ? '토끼 전용 아이템만 모아보고 꾸며요.'
+                  : '이 배경에 속한 아이템만 착용하거나 배치해요.'}
+              </p>
             </div>
             <div className="flex rounded-xl bg-gray-100 p-1 text-[10px] font-bold">
               {([
