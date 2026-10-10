@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   AladinSearchResponse,
+  createAladinLookupUrl,
   createAladinSearchUrl,
   normalizeAladinSearch,
 } from '@/lib/aladinBooks';
+import { parseIsbn } from '@/lib/isbn';
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q');
@@ -19,7 +21,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const apiUrl = createAladinSearchUrl(query, ttbKey);
+    // 바코드/ISBN이면 정확히 그 책 한 권을 조회, 아니면 키워드 검색
+    const isbn = parseIsbn(query);
+    const apiUrl = isbn ? createAladinLookupUrl(isbn, ttbKey) : createAladinSearchUrl(query, ttbKey);
 
     const res = await fetch(apiUrl, { cache: 'no-store' });
 
@@ -30,6 +34,11 @@ export async function GET(request: NextRequest) {
     }
 
     const data = (await res.json()) as AladinSearchResponse;
+
+    // ISBN 조회는 알라딘에 없는 책이면 오류로 응답하므로 '결과 없음'으로 처리
+    if (isbn && data.errorCode) {
+      return NextResponse.json(normalizeAladinSearch({}));
+    }
 
     if (data.errorCode) {
       console.error('Aladin API error:', data.errorCode, data.errorMessage);

@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBookStore } from '@/store/useBookStore';
 import BookCategoryFields, { BookCategorySelection } from './BookCategoryFields';
+import BarcodeScanner from './BarcodeScanner';
+import { parseIsbn } from '@/lib/isbn';
 
 interface BookSearchResult {
   title: string;
@@ -32,16 +34,20 @@ export default function BookSearch({ onClose }: BookSearchProps) {
   const [error, setError] = useState('');
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [resultCategories, setResultCategories] = useState<Record<string, BookCategorySelection>>({});
+  const [scanning, setScanning] = useState(false);
+  const [scannedIsbn, setScannedIsbn] = useState('');
 
   const addBook = useBookStore((s) => s.addBook);
 
-  const search = useCallback(async () => {
-    if (!query.trim()) return;
+  const runSearch = useCallback(async (keyword: string) => {
+    if (!keyword.trim()) return;
+    const isbn = parseIsbn(keyword);
     setLoading(true);
     setError('');
     setResults([]);
+    setScannedIsbn(isbn ?? '');
     try {
-      const res = await fetch(`/api/books?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/books?q=${encodeURIComponent(keyword)}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -51,14 +57,26 @@ export default function BookSearch({ onClose }: BookSearchProps) {
 
       setResults(data.items || []);
       if ((data.items || []).length === 0) {
-        setError('검색 결과가 없어요. 다른 제목으로 검색해 보세요!');
+        setError(
+          isbn
+            ? '이 바코드의 책을 찾지 못했어요. 제목으로 검색하거나 아래에 직접 입력해 주세요.'
+            : '검색 결과가 없어요. 다른 제목으로 검색해 보세요!'
+        );
       }
     } catch {
       setError('네트워크 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, []);
+
+  const search = useCallback(() => runSearch(query), [runSearch, query]);
+
+  const handleScanned = useCallback((isbn: string) => {
+    setScanning(false);
+    setQuery(isbn);
+    runSearch(isbn);
+  }, [runSearch]);
 
   const handleAdd = useCallback((book: BookSearchResult, resultKey: string) => {
     const categories = resultCategories[resultKey] ?? { isProse: false, isEnglish: false };
@@ -114,6 +132,21 @@ export default function BookSearch({ onClose }: BookSearchProps) {
         </motion.button>
       </div>
 
+      {/* 바코드 스캔 */}
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setScanning(true)}
+        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-400 to-indigo-400 text-white font-bold py-3 rounded-2xl shadow-md text-sm"
+      >
+        📷 책 뒷면 바코드로 찾기
+      </motion.button>
+
+      <AnimatePresence>
+        {scanning && (
+          <BarcodeScanner onDetected={handleScanned} onClose={() => setScanning(false)} />
+        )}
+      </AnimatePresence>
+
       {/* 에러 */}
       <AnimatePresence>
         {error && (
@@ -145,7 +178,9 @@ export default function BookSearch({ onClose }: BookSearchProps) {
       {results.length > 0 && (
         <div className="overflow-y-auto space-y-2 max-h-64">
           <p className="text-xs text-gray-400 text-center">
-            📖 {results.length}개의 책을 찾았어요!
+            {scannedIsbn
+              ? '📷 바코드로 책을 찾았어요! 맞으면 + 추가를 눌러 주세요'
+              : `📖 ${results.length}개의 책을 찾았어요!`}
           </p>
           <AnimatePresence>
             {results.map((book, i) => {

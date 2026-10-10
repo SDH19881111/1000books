@@ -36,6 +36,19 @@ export function createAladinSearchUrl(query: string, ttbKey: string) {
   return apiUrl;
 }
 
+export function createAladinLookupUrl(isbn13: string, ttbKey: string) {
+  const apiUrl = new URL('https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx');
+  apiUrl.search = new URLSearchParams({
+    ttbkey: ttbKey,
+    ItemId: isbn13,
+    ItemIdType: 'ISBN13',
+    output: 'JS',
+    Version: '20131101',
+    Cover: 'Big',
+  }).toString();
+  return apiUrl;
+}
+
 export function normalizeAladinSearch(data: AladinSearchResponse) {
   const items = (data.item || []).map((book) => ({
     title: book.title || '',
