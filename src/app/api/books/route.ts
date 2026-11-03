@@ -5,7 +5,54 @@ import {
   createAladinSearchUrl,
   normalizeAladinSearch,
 } from '@/lib/aladinBooks';
+import { NlSearchResponse, createNlLookupUrl, normalizeNlSearch } from '@/lib/nlBooks';
 import { parseIsbn } from '@/lib/isbn';
+
+const EMPTY_RESULT = normalizeAladinSearch({});
+const TITLE_SEARCH_DOWN =
+  '지금은 제목 검색이 잘 안 돼요. 📷 바코드로 찾거나 아래에 직접 입력해 주세요.';
+
+// 알라딘 응답을 읽는다. 서비스 종료 등으로 JSON이 아니면 null
+async function readAladin(url: URL) {
+  const res = await fetch(url, { cache: 'no-store' });
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text) as AladinSearchResponse;
+    return res.ok ? data : null;
+  } catch {
+    console.error('Aladin API error:', res.status, text.slice(0, 200));
+    return null;
+  }
+}
+
+// 국립중앙도서관에서 ISBN 조회. 없는 책이거나 오류면 null
+async function lookupNl(isbn: string, certKey: string) {
+  try {
+    const res = await fetch(createNlLookupUrl(isbn, certKey), { cache: 'no-store' });
+    if (!res.ok) {
+      console.error('NL API error:', await res.text());
+      return null;
+    }
+    const result = normalizeNlSearch((await res.json()) as NlSearchResponse);
+    return result.items.length > 0 ? result : null;
+  } catch (err) {
+    console.error('NL API error:', err);
+    return null;
+  }
+}
+
+// 알라딘에서 ISBN 한 권 조회. 없는 책이거나 오류면 null
+async function lookupAladin(isbn: string, ttbKey: string) {
+  try {
+    const data = await readAladin(createAladinLookupUrl(isbn, ttbKey));
+    if (!data || data.errorCode) return null;
+    const result = normalizeAladinSearch(data);
+    return result.items.length > 0 ? result : null;
+  } catch (err) {
+    console.error('Aladin API error:', err);
+    return null;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q');
@@ -15,42 +62,35 @@ export async function GET(request: NextRequest) {
   }
 
   const ttbKey = process.env.ALADIN_TTB_KEY;
+  const nlKey = process.env.NL_CERT_KEY;
+  const isbn = parseIsbn(query);
+
+  // 바코드/ISBN이면 국립중앙도서관 → 알라딘 순서로 그 책 한 권을 찾는다
+  if (isbn) {
+    if (!ttbKey && !nlKey) {
+      return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
+    }
+    const found =
+      (nlKey ? await lookupNl(isbn, nlKey) : null) ??
+      (ttbKey ? await lookupAladin(isbn, ttbKey) : null);
+    return NextResponse.json(found ?? EMPTY_RESULT);
+  }
 
   if (!ttbKey) {
-    return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
+    return NextResponse.json({ error: TITLE_SEARCH_DOWN }, { status: 503 });
   }
 
   try {
-    // 바코드/ISBN이면 정확히 그 책 한 권을 조회, 아니면 키워드 검색
-    const isbn = parseIsbn(query);
-    const apiUrl = isbn ? createAladinLookupUrl(isbn, ttbKey) : createAladinSearchUrl(query, ttbKey);
+    const data = await readAladin(createAladinSearchUrl(query, ttbKey));
 
-    const res = await fetch(apiUrl, { cache: 'no-store' });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('Aladin API error:', errText);
-      return NextResponse.json({ error: '알라딘 API 오류가 발생했습니다.' }, { status: res.status });
-    }
-
-    const data = (await res.json()) as AladinSearchResponse;
-
-    // ISBN 조회는 알라딘에 없는 책이면 오류로 응답하므로 '결과 없음'으로 처리
-    if (isbn && data.errorCode) {
-      return NextResponse.json(normalizeAladinSearch({}));
-    }
-
-    if (data.errorCode) {
-      console.error('Aladin API error:', data.errorCode, data.errorMessage);
-      return NextResponse.json(
-        { error: data.errorMessage || '알라딘 API 오류가 발생했습니다.' },
-        { status: 502 }
-      );
+    if (!data || data.errorCode) {
+      if (data) console.error('Aladin API error:', data.errorCode, data.errorMessage);
+      return NextResponse.json({ error: TITLE_SEARCH_DOWN }, { status: 503 });
     }
 
     return NextResponse.json(normalizeAladinSearch(data));
   } catch (err) {
     console.error('fetch error:', err);
-    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
+    return NextResponse.json({ error: TITLE_SEARCH_DOWN }, { status: 503 });
   }
 }

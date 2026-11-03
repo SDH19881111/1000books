@@ -112,6 +112,15 @@ export default function BookSearch({ onClose }: BookSearchProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 바코드 스캔 */}
+      <motion.button
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setScanning(true)}
+        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-400 to-indigo-400 text-white font-bold py-4 rounded-2xl shadow-md text-base"
+      >
+        📷 책 뒷면 바코드로 찾기
+      </motion.button>
+
       {/* 검색 바 */}
       <div className="flex gap-2">
         <input
@@ -119,7 +128,7 @@ export default function BookSearch({ onClose }: BookSearchProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && search()}
-          placeholder="📚 책 제목을 검색해봐요!"
+          placeholder="🔢 바코드 숫자(ISBN)나 책 제목"
           className="flex-1 bg-pink-50 border-2 border-pink-200 rounded-2xl px-4 py-2.5 text-sm text-gray-700 placeholder-pink-300 focus:outline-none focus:border-pink-400 transition-colors"
         />
         <motion.button
@@ -131,15 +140,6 @@ export default function BookSearch({ onClose }: BookSearchProps) {
           {loading ? '⏳' : '🔍'}
         </motion.button>
       </div>
-
-      {/* 바코드 스캔 */}
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={() => setScanning(true)}
-        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-400 to-indigo-400 text-white font-bold py-3 rounded-2xl shadow-md text-sm"
-      >
-        📷 책 뒷면 바코드로 찾기
-      </motion.button>
 
       <AnimatePresence>
         {scanning && (
