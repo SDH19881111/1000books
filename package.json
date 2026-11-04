@@ -17,23 +17,23 @@
     "@zxing/library": "^0.23.0",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^11.0.0",
-    "next": "^15.5.21",
+    "next": "^16.4.5",
     "react": "^19",
     "react-dom": "^19",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1",
+    "@opennextjs/cloudflare": "^1.20.16",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "esbuild": "^0.25.4",
     "eslint": "^9",
-    "eslint-config-next": "^15.5.21",
+    "eslint-config-next": "^16.4.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",
-    "wrangler": "^4"
+    "wrangler": "^4.157.0"
   }
 }
