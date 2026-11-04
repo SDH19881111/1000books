@@ -26,16 +26,19 @@ async function readAladin(url: URL) {
 }
 
 // 국립중앙도서관에서 ISBN 조회. 없는 책이거나 오류면 null
-async function lookupNl(isbn: string, certKey: string) {
+async function lookupNl(isbn: string, certKey: string, notes: string[]) {
   try {
     const res = await fetch(createNlLookupUrl(isbn, certKey), { cache: 'no-store' });
+    const text = await res.text();
+    notes.push(`nl http ${res.status}: ${text.slice(0, 200)}`);
     if (!res.ok) {
-      console.error('NL API error:', await res.text());
+      console.error('NL API error:', text);
       return null;
     }
-    const result = normalizeNlSearch((await res.json()) as NlSearchResponse);
+    const result = normalizeNlSearch(JSON.parse(text) as NlSearchResponse);
     return result.items.length > 0 ? result : null;
   } catch (err) {
+    notes.push(`nl error: ${String(err)}`);
     console.error('NL API error:', err);
     return null;
   }
@@ -70,10 +73,12 @@ export async function GET(request: NextRequest) {
     if (!ttbKey && !nlKey) {
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
+    // TODO(임시 진단): 배포 환경에서 국립중앙도서관 조회가 비는 원인 확인용
+    const notes: string[] = [`nlKey ${nlKey ? `set (${nlKey.length} chars)` : 'missing'}`];
     const found =
-      (nlKey ? await lookupNl(isbn, nlKey) : null) ??
+      (nlKey ? await lookupNl(isbn, nlKey, notes) : null) ??
       (ttbKey ? await lookupAladin(isbn, ttbKey) : null);
-    return NextResponse.json(found ?? EMPTY_RESULT);
+    return NextResponse.json({ ...(found ?? EMPTY_RESULT), debug: notes });
   }
 
   if (!ttbKey) {
